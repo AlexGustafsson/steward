@@ -16,9 +16,9 @@ import (
 )
 
 type Entry struct {
-	Path     string
-	Metadata []string
-	Digest   string
+	Path     string   `json:"path"`
+	Metadata []string `json:"metadata"`
+	Digest   string   `json:"digest"`
 }
 
 func readEntry(path string) (Entry, error) {

@@ -23,15 +23,15 @@ gzip -d < library.json.gz | head -1
 
 ```jsonc
 {
-  "Path": "music/Genesis-We_Can’t_Dance/04.I_Can’t_Dance.flac",
-  "Metadata": [
+  "path": "music/Genesis-We_Can’t_Dance/04.I_Can’t_Dance.flac",
+  "metadata": [
     "ACOUSTID_ID=26b5daef-5a1c-4ca4-ab10-8757e2da5d7e",
     "ALBUM=We Can’t Dance",
     // ...
     "TRACKNUMBER=4",
     "TRACKTOTAL=12"
   ],
-  "Digest": "sha256:8aa9d6eaeaa32803a484632c0b0a95a54f6bccf2873e382f913d4834f31833ff"
+  "digest": "sha256:8aa9d6eaeaa32803a484632c0b0a95a54f6bccf2873e382f913d4834f31833ff"
 }
 ```
 
