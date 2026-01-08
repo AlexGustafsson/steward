@@ -16,9 +16,10 @@ import (
 )
 
 type Entry struct {
-	Path     string   `json:"path"`
-	Metadata []string `json:"metadata"`
-	Digest   string   `json:"digest"`
+	Path             string   `json:"path"`
+	Metadata         []string `json:"metadata"`
+	Digest           string   `json:"digest"`
+	EmbeddedPictures []string `json:"embeddedPictures"`
 }
 
 func readEntry(path string) (Entry, error) {
@@ -35,6 +36,7 @@ func readEntry(path string) (Entry, error) {
 
 	hash := sha256.New()
 	metadata := make([]string, 0)
+	embeddedPictures := make([]string, 0)
 	for {
 		r, metadataBlockType, err := reader.NextReader()
 		if err == io.EOF {
@@ -54,6 +56,14 @@ func readEntry(path string) (Entry, error) {
 				metadata = append(metadata, string(field))
 			}
 			slices.Sort(metadata)
+		case 6:
+			hash := sha256.New()
+			_, err := io.Copy(hash, r)
+			if err != nil {
+				return Entry{}, err
+			}
+
+			embeddedPictures = append(embeddedPictures, "sha256:"+hex.EncodeToString(hash.Sum(nil)))
 		case -1:
 			_, err := io.Copy(hash, r)
 			if err != nil {
@@ -68,9 +78,10 @@ func readEntry(path string) (Entry, error) {
 	}
 
 	return Entry{
-		Path:     path,
-		Digest:   "sha256:" + hex.EncodeToString(hash.Sum(nil)),
-		Metadata: metadata,
+		Path:             path,
+		Digest:           "sha256:" + hex.EncodeToString(hash.Sum(nil)),
+		Metadata:         metadata,
+		EmbeddedPictures: embeddedPictures,
 	}, nil
 }
 
