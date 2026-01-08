@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Steward</title>
+    <style>
+      body {
+        width: 100%;
+      }
+
+      main {
+        display: grid;
+        grid-template-columns: 50% 50%;
+      }
+
+      aside > div {
+        margin-bottom: 5px;
+        border: 1px solid black;
+        padding: 5px;
+      }
+
+      .added {
+        color: green;
+        font-weight: bold;
+      }
+
+      .removed {
+        color: red;
+        font-weight: bold;
+      }
+
+      .diff {
+        color: orange;
+        font-weight: bold;
+        text-decoration-line: underline;
+        text-decoration-style: wavy;
+      }
+    </style>
+  </head>
+
+  <body>
+    <h1>Difference</h1>
+    <h2>{{ len .EntriesA }} files</h2>
+    <hr />
+    <main>
+      <aside>
+        {{ range $e := .EntriesA }}
+        <div>
+          <h2>{{ $e.ShortID }}</h2>
+          <p>
+            <b>{{ $e.Artist }}</b> - <b>{{ $e.Album }}</b> - <b>{{ $e.TrackNumber }}</b> - <b>{{ $e.Title }}</b>
+          </p>
+          <p>
+            <code>{{ $e.FilePath }}</code>
+          </p>
+          <dl>
+            {{ range $m := $e.Metadata }}
+            <dt class="{{ $m.KeyClass }}">{{ $m.Key }}</dt>
+            <dd class="{{ $m.ValueClass }}">{{ $m.Value }}</dd>
+            {{ end }}
+          </dl>
+          <p>
+            <code>{{ $e.Digest }}</code>
+          </p>
+        </div>
+        {{ end }}
+      </aside>
+      <aside>
+        {{ range $e := .EntriesB }}
+        <div>
+          <h2>{{ $e.ShortID }}</h2>
+          <p>
+            <b>{{ $e.Artist }}</b> - <b>{{ $e.Album }}</b> - <b>{{ $e.TrackNumber }}</b> - <b>{{ $e.Title }}</b>
+          </p>
+          <p>
+            <code>{{ $e.FilePath }}</code>
+          </p>
+          <dl>
+            {{ range $m := $e.Metadata }}
+            <dt class="{{ $m.KeyClass }}">{{ $m.Key }}</dt>
+            <dd class="{{ $m.ValueClass }}">{{ $m.Value }}</dd>
+            {{ end }}
+          </dl>
+          <p>
+            <code>{{ $e.Digest }}</code>
+          </p>
+        </div>
+        {{ end }}
+      </aside>
+    </main>
+  </body>
+</html>

@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Steward - {{ .Title }}</title>
+    <style>
+      body {
+        width: 100%;
+      }
+
+      main {
+        display: grid;
+        grid-template-columns: 50%;
+        justify-content: center;
+      }
+
+      main > div {
+        margin-bottom: 5px;
+        border: 1px solid black;
+        padding: 5px;
+      }
+    </style>
+  </head>
+
+  <body>
+    <h1>{{ .Title }}</h1>
+    <h2>{{ len .Entries }} files</h2>
+    <hr />
+    <main>
+      {{ range $e := .Entries }}
+      <div>
+        <h2>{{ $e.ShortID }}</h2>
+        <p>
+          <b>{{ $e.Artist }}</b> - <b>{{ $e.Album }}</b> - <b>{{ $e.TrackNumber }}</b> - <b>{{ $e.Title }}</b>
+        </p>
+        <p>
+          <code>{{ $e.FilePath }}</code>
+        </p>
+        <details>
+          <dl>
+            {{ range $m := $e.Metadata }}
+            <dt>{{ $m.Key }}</dt>
+            <dd>{{ $m.Value }}</dd>
+            {{ end }}
+          </dl>
+          <p>
+            <code>{{ $e.Digest }}</code>
+          </p>
+        </details>
+      </div>
+      {{ end }}
+    </main>
+  </body>
+</html>
