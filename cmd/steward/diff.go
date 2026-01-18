@@ -264,14 +264,14 @@ func readEntries(path string) ([]report.DataEntry, error) {
 		}
 
 		entries = append(entries, report.DataEntry{
-			ShortID:     entry.Digest[7:12],
+			ShortID:     entry.AudioDigest[7:12],
 			Artist:      artist,
 			Album:       album,
 			TrackNumber: trackNumber,
 			Title:       title,
 			FilePath:    entry.Path,
 			Metadata:    metadata,
-			Digest:      entry.Digest,
+			Digest:      entry.AudioDigest,
 		})
 	}
 

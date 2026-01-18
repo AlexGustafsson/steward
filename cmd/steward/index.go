@@ -1,88 +1,24 @@
 package main
 
 import (
-	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
-	"io"
 	"io/fs"
 	"log/slog"
 	"os"
 	"path/filepath"
-	"slices"
 	"sync"
+	"time"
 
-	"github.com/AlexGustafsson/steward/internal/flac"
+	"github.com/AlexGustafsson/steward/internal/report"
 )
 
 type Entry struct {
-	Path             string   `json:"path"`
-	Metadata         []string `json:"metadata"`
-	Digest           string   `json:"digest"`
-	EmbeddedPictures []string `json:"embeddedPictures"`
-}
-
-func readEntry(path string) (Entry, error) {
-	file, err := os.Open(path)
-	if err != nil {
-		return Entry{}, err
-	}
-	defer file.Close()
-
-	reader, err := flac.NewFileReader(file)
-	if err != nil {
-		return Entry{}, err
-	}
-
-	hash := sha256.New()
-	metadata := make([]string, 0)
-	embeddedPictures := make([]string, 0)
-	for {
-		r, metadataBlockType, err := reader.NextReader()
-		if err == io.EOF {
-			break
-		} else if err != nil {
-			return Entry{}, err
-		}
-
-		switch metadataBlockType {
-		case 4:
-			comment, err := flac.ReadVorbisComment(r)
-			if err != nil {
-				return Entry{}, err
-			}
-
-			for _, field := range comment.Fields {
-				metadata = append(metadata, string(field))
-			}
-			slices.Sort(metadata)
-		case 6:
-			hash := sha256.New()
-			_, err := io.Copy(hash, r)
-			if err != nil {
-				return Entry{}, err
-			}
-
-			embeddedPictures = append(embeddedPictures, "sha256:"+hex.EncodeToString(hash.Sum(nil)))
-		case -1:
-			_, err := io.Copy(hash, r)
-			if err != nil {
-				return Entry{}, err
-			}
-		default:
-			_, err = io.Copy(io.Discard, r)
-			if err != nil {
-				return Entry{}, err
-			}
-		}
-	}
-
-	return Entry{
-		Path:             path,
-		Digest:           "sha256:" + hex.EncodeToString(hash.Sum(nil)),
-		Metadata:         metadata,
-		EmbeddedPictures: embeddedPictures,
-	}, nil
+	Path        string    `json:"path"`
+	Size        int64     `json:"size"`
+	ModTime     time.Time `json:"modTime"`
+	Metadata    []string  `json:"metadata"`
+	AudioDigest string    `json:"audioDigest"`
+	FileDigest  string    `json:"fileDigest"`
 }
 
 func index(root string) {
@@ -100,14 +36,27 @@ func index(root string) {
 	for range 10 {
 		wg.Go(func() {
 			for path := range paths {
-				entry, err := readEntry(path)
+				file, err := os.Open(path)
 				if err != nil {
-					slog.Error("Failed to read path", slog.String("path", path), slog.Any("error", err))
+					slog.Error("Failed to open path", slog.String("path", path), slog.Any("error", err))
+					continue
+				}
+
+				entry, err := report.Index(path, file)
+				if err != nil {
+					slog.Error("Failed to index path", slog.String("path", path), slog.Any("error", err))
 					continue
 				}
 
 				mutex.Lock()
-				encoder.Encode(&entry)
+				encoder.Encode(&Entry{
+					Path:        entry.Name,
+					Size:        entry.Size,
+					ModTime:     entry.ModTime,
+					Metadata:    entry.Metadata,
+					AudioDigest: entry.AudioDigest,
+					FileDigest:  entry.FileDigest,
+				})
 				mutex.Unlock()
 			}
 		})
