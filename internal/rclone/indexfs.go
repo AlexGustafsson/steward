@@ -6,7 +6,6 @@ import (
 	"os"
 	"time"
 
-	"github.com/AlexGustafsson/steward/internal/report"
 	"github.com/rclone/rclone/fs"
 	"github.com/rclone/rclone/fs/hash"
 )
@@ -14,19 +13,19 @@ import (
 var _ fs.Fs = (*IndexFS)(nil)
 
 type IndexFS struct {
-	Entry report.Entry
+	Entry Entry
 }
 
 // Features implements fs.Fs.
 func (i *IndexFS) Features() *fs.Features {
 	return &fs.Features{
-		CaseInsensitive: true,
-		IsLocal:         true,
+		IsLocal: true,
 	}
 }
 
 // Hashes implements fs.Fs.
 func (i *IndexFS) Hashes() hash.Set {
+	// B2 supports SHA-1 natively, for now use that
 	return hash.NewHashSet(hash.SHA1)
 }
 
@@ -47,12 +46,16 @@ func (i *IndexFS) Name() string {
 
 // NewObject implements fs.Fs.
 func (i *IndexFS) NewObject(ctx context.Context, remote string) (fs.Object, error) {
+	// TODO: Use blob name?
 	if i.Entry.Name == remote {
 		return &IndexObject{
 			fs:    i,
 			entry: i.Entry,
+			// Assumed
+			mimeType: "audio/flac",
 		}, nil
 	}
+
 	return nil, fs.ErrorObjectNotFound
 }
 
@@ -87,11 +90,12 @@ var _ fs.Object = (*IndexObject)(nil)
 var _ fs.MimeTyper = (*IndexObject)(nil)
 
 type IndexObject struct {
-	fs    fs.Fs
-	entry report.Entry
+	fs       fs.Fs
+	entry    Entry
+	mimeType string
 }
 
-func (b *IndexObject) Entry() report.Entry {
+func (b *IndexObject) Entry() Entry {
 	return b.entry
 }
 
@@ -116,6 +120,7 @@ func (b *IndexObject) Hash(ctx context.Context, ty hash.Type) (string, error) {
 		return "", nil
 	}
 
+	// Trim leading "sha1-" prefix
 	return b.entry.FileDigest[5:], nil
 }
 
@@ -146,8 +151,7 @@ func (b *IndexObject) String() string {
 
 // MimeType implements fs.MimeTyper.
 func (b *IndexObject) MimeType(ctx context.Context) string {
-	// Assumption
-	return "audio/flac"
+	return b.mimeType
 }
 
 func (b *IndexObject) Open(ctx context.Context, options ...fs.OpenOption) (io.ReadCloser, error) {
@@ -155,5 +159,5 @@ func (b *IndexObject) Open(ctx context.Context, options ...fs.OpenOption) (io.Re
 }
 
 func (b *IndexObject) Remove(ctx context.Context) error {
-	return nil
+	panic("unimplemented")
 }

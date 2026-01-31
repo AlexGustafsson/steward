@@ -23,6 +23,7 @@ func GetFS(ctx context.Context, remoteName string) (fs.Fs, error) {
 		return nil, err
 	}
 
+	// NOTE: We use the native SHA-1 support of B2
 	if !f.Hashes().Contains(hash.SHA1) {
 		return nil, fmt.Errorf("unsupported file system")
 	}

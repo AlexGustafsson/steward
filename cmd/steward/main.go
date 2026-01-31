@@ -25,6 +25,11 @@ func main() {
 				indexPath = os.Args[4]
 			}
 			upload(remote, indexPath)
+		case "download":
+			remote := os.Args[3]
+			a := os.Args[4]
+			b := os.Args[5]
+			download(remote, a, b)
 		}
 	default:
 		panic(fmt.Sprintf("usage: %s index|diff", os.Args[0]))

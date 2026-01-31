@@ -15,7 +15,6 @@ import (
 	"time"
 
 	"github.com/AlexGustafsson/steward/internal/rclone"
-	"github.com/AlexGustafsson/steward/internal/report"
 	rclonefs "github.com/rclone/rclone/fs"
 	"github.com/rclone/rclone/fs/accounting"
 	"github.com/rclone/rclone/fs/operations"
@@ -42,7 +41,9 @@ func upload(remote string, indexPath string) {
 
 		// TODO: The contents could technically still differ, but for now let's not
 		// bother. If it's an issue, use force to perform hash-based matching
-		// instead
+		// instead Note that the important content is the audio data. Changes in
+		// metadata is not important when comparing the blobs as that can be
+		// restored separately, but remotes like B2 will report the actual file hash
 		return dst.Remote() == expectedPath
 	})
 
@@ -109,8 +110,7 @@ func upload(remote string, indexPath string) {
 	for range 10 {
 		wg.Go(func() {
 			for entry := range entries {
-				// TODO: Naming
-				sourceFS := &rclone.IndexFS{Entry: report.Entry{
+				indexFS := &rclone.IndexFS{Entry: rclone.Entry{
 					Name:        entry.Path,
 					ModTime:     entry.ModTime,
 					Size:        entry.Size,
@@ -120,7 +120,7 @@ func upload(remote string, indexPath string) {
 				}}
 				algorithm, digest, _ := strings.Cut(entry.AudioDigest, ":")
 				name := filepath.Join("blobs", algorithm, digest)
-				rclone.Copy(ctx, sourceFS, entry.Path, remoteFS, name)
+				rclone.Copy(ctx, indexFS, entry.Path, remoteFS, name)
 			}
 		})
 	}
