@@ -30,7 +30,8 @@ func main() {
 		remote := os.Args[2]
 		a := os.Args[3]
 		b := os.Args[4]
-		download(remote, a, b)
+		root := os.Args[5]
+		download(remote, a, b, root)
 	case "patch":
 		panic("unimplemented")
 	default:

@@ -9,6 +9,7 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/AlexGustafsson/steward/internal/indexing"
@@ -18,7 +19,7 @@ import (
 	"github.com/rclone/rclone/fs/operations"
 )
 
-func download(remote string, a string, b string) {
+func download(remote string, a string, b string, root string) {
 	entriesA, err := readEntries(a)
 	if err != nil {
 		panic(err)
@@ -52,26 +53,27 @@ func download(remote string, a string, b string) {
 	}
 
 	fmt.Println("Found", len(missing), "missing item(s)")
+	if len(missing) == 0 {
+		return
+	}
 
 	ctx := context.Background()
 
 	ctx = operations.WithLogger(ctx, operations.LoggerFn(func(ctx context.Context, sigil operations.Sigil, src, dst rclonefs.DirEntry, err error) {
+		log := slog.With(slog.String("name", src.Remote()))
+
 		switch sigil {
 		case operations.MissingOnSrc:
-			fmt.Println(src.Remote(), "is missing on remote")
-		case operations.MissingOnDst:
-			fmt.Println(src.Remote(), "is missing locally")
+			log.Debug("Remote file is missing locally")
 		case operations.Match:
-			fmt.Println(src.Remote(), "match")
+			log.Debug("Local and remote files match")
 		case operations.Differ:
-			fmt.Println(src.Remote(), "differ")
+			log.Debug("Local and remote files differ")
 		case operations.TransferError:
-			fmt.Println(src.Remote(), "failed")
-		default:
-			fmt.Println(src.Remote(), sigil)
+			log.Warn("Failed to download file")
 		}
 	}))
-	ctx = accounting.WithStatsGroup(ctx, "upload")
+	ctx = accounting.WithStatsGroup(ctx, "download")
 
 	remoteFS, err := rclone.GetFS(ctx, remote)
 	if err != nil {
@@ -83,15 +85,32 @@ func download(remote string, a string, b string) {
 
 	var wg sync.WaitGroup
 
+	var failures atomic.Uint64
+	var successes atomic.Uint64
+
+	var totalBytes uint64
+	var processedBytes atomic.Uint64
+
 	ticker := time.NewTicker(1 * time.Second)
 	go func() {
 		for range ticker.C {
 			v := accounting.Stats(ctx)
-			fmt.Println(v.String())
+			progress := float64(processedBytes.Load()) / float64(totalBytes)
+			slog.Debug(
+				"Download in progress",
+				slog.Float64("progress", progress),
+				slog.Uint64("totalBytes", totalBytes),
+				slog.Uint64("processedBytes", processedBytes.Load()),
+				slog.Int64("downloadedBytes", v.GetBytes()),
+				slog.Int64("transfers", v.GetTransfers()),
+				slog.Int64("checks", v.GetChecks()),
+				slog.Int64("errors", v.GetErrors()),
+				slog.Int64("bytesPending", v.GetBytesWithPending()),
+				slog.Any("lastError", v.GetLastError()),
+			)
 		}
 	}()
 
-	failures := 0
 	for range 10 {
 		wg.Go(func() {
 			for entry := range entries {
@@ -100,13 +119,22 @@ func download(remote string, a string, b string) {
 				diffFS := &rclone.DiffFS{Entry: entry}
 				algorithm, digest, _ := strings.Cut(entry.AudioDigest, ":")
 				name := filepath.Join("blobs", algorithm, digest)
-				fmt.Println("Downloading", name, "to ./")
-				rclone.Copy(ctx, remoteFS, name, diffFS, "./")
+				slog.Debug("Processing entry", slog.String("name", name))
+				err := rclone.Copy(ctx, remoteFS, name, diffFS, root)
+				processedBytes.Add(uint64(entry.Size))
+				if err == nil {
+					successes.Add(1)
+				} else {
+					slog.Warn("Failed to download entry", slog.Any("error", err))
+					failures.Add(1)
+					// Fallthrough
+				}
 			}
 		})
 	}
 
 	for _, entry := range missing {
+		totalBytes += uint64(entry.Size)
 		entries <- entry
 	}
 	close(entries)
@@ -114,7 +142,41 @@ func download(remote string, a string, b string) {
 	wg.Wait()
 	ticker.Stop()
 
-	if failures > 0 {
+	v := accounting.Stats(ctx)
+
+	progress := float64(processedBytes.Load()) / float64(totalBytes)
+	if failures.Load() > 0 {
+		slog.Error(
+			"Download failed",
+			slog.Uint64("failures", failures.Load()),
+			slog.Uint64("successes", successes.Load()),
+
+			slog.Float64("progress", progress),
+			slog.Uint64("totalBytes", totalBytes),
+			slog.Uint64("processedBytes", processedBytes.Load()),
+			slog.Int64("downloadedBytes", v.GetBytes()),
+			slog.Int64("transfers", v.GetTransfers()),
+			slog.Int64("checks", v.GetChecks()),
+			slog.Int64("errors", v.GetErrors()),
+			slog.Int64("bytesPending", v.GetBytesWithPending()),
+			slog.Any("lastError", v.GetLastError()),
+		)
 		os.Exit(1)
+	} else {
+		slog.Info(
+			"Download succeeded",
+			slog.Uint64("failures", failures.Load()),
+			slog.Uint64("successes", successes.Load()),
+
+			slog.Float64("progress", progress),
+			slog.Uint64("totalBytes", totalBytes),
+			slog.Uint64("processedBytes", processedBytes.Load()),
+			slog.Int64("downloadedBytes", v.GetBytes()),
+			slog.Int64("transfers", v.GetTransfers()),
+			slog.Int64("checks", v.GetChecks()),
+			slog.Int64("errors", v.GetErrors()),
+			slog.Int64("bytesPending", v.GetBytesWithPending()),
+			slog.Any("lastError", v.GetLastError()),
+		)
 	}
 }
