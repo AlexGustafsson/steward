@@ -7,6 +7,9 @@ Content: digest of audio data (FLAC-aware), file structure, metadata fields.
 Use case: diff metadata between libraries, if two music libraries diverge, let
 them coordinate.
 
+TODO: Handle duplicates (audio hash not necessarily globally unique) when
+indexing.
+
 ## Quick start
 
 Scan through the library and write the entries to a compressed file.
