@@ -11,6 +11,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/AlexGustafsson/steward/internal/indexing"
 	"github.com/AlexGustafsson/steward/internal/rclone"
 	rclonefs "github.com/rclone/rclone/fs"
 	"github.com/rclone/rclone/fs/accounting"
@@ -28,16 +29,19 @@ func download(remote string, a string, b string) {
 		panic(err)
 	}
 
+	bailOnDuplicates(entriesA)
+	bailOnDuplicates(entriesB)
+
 	missing := make([]rclone.Entry, 0)
 
 	// TODO: Optimize if necessary
 	for _, entryB := range entriesB {
-		_, ok := slices.BinarySearchFunc(entriesA, entryB.AudioDigest, func(entryA Entry, digest string) int {
+		_, ok := slices.BinarySearchFunc(entriesA, entryB.AudioDigest, func(entryA indexing.Entry, digest string) int {
 			return strings.Compare(entryA.AudioDigest, digest)
 		})
 		if !ok {
 			missing = append(missing, rclone.Entry{
-				Name:        entryB.Path,
+				Name:        entryB.Name,
 				ModTime:     entryB.ModTime,
 				Size:        entryB.Size,
 				Metadata:    entryB.Metadata,

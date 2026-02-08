@@ -12,6 +12,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/AlexGustafsson/steward/internal/indexing"
 	"github.com/AlexGustafsson/steward/internal/report"
 )
 
@@ -26,28 +27,31 @@ func diff(a string, b string) {
 		panic(err)
 	}
 
+	bailOnDuplicates(entriesA)
+	bailOnDuplicates(entriesB)
+
 	onlyInA := make([]report.DataEntry, 0)
 	onlyInB := make([]report.DataEntry, 0)
 	inBoth := make([]report.DataEntry, 0)
 
 	// TODO: Optimize if necessary
 	for _, entryA := range entriesA {
-		i, ok := slices.BinarySearchFunc(entriesB, entryA.AudioDigest, func(entryB Entry, digest string) int {
+		i, ok := slices.BinarySearchFunc(entriesB, entryA.AudioDigest, func(entryB indexing.Entry, digest string) int {
 			return strings.Compare(entryB.AudioDigest, digest)
 		})
 		if ok {
-			inBoth = append(inBoth, mapEntryToDataEntry(entryA), mapEntryToDataEntry(entriesB[i]))
+			inBoth = append(inBoth, report.DataEntryFromIndexEntry(entryA), report.DataEntryFromIndexEntry(entriesB[i]))
 		} else {
-			onlyInA = append(onlyInA, mapEntryToDataEntry(entryA))
+			onlyInA = append(onlyInA, report.DataEntryFromIndexEntry(entryA))
 		}
 	}
 
 	for _, entryB := range entriesB {
-		_, ok := slices.BinarySearchFunc(entriesA, entryB.AudioDigest, func(entryA Entry, digest string) int {
+		_, ok := slices.BinarySearchFunc(entriesA, entryB.AudioDigest, func(entryA indexing.Entry, digest string) int {
 			return strings.Compare(entryA.AudioDigest, digest)
 		})
 		if !ok {
-			onlyInB = append(onlyInB, mapEntryToDataEntry(entryB))
+			onlyInB = append(onlyInB, report.DataEntryFromIndexEntry(entryB))
 		}
 	}
 
@@ -210,7 +214,7 @@ func diffMetadata(entriesA, entriesB []report.MetadataEntry) ([]report.MetadataE
 	return outA, outB
 }
 
-func readEntries(path string) ([]Entry, error) {
+func readEntries(path string) ([]indexing.Entry, error) {
 	file, err := os.Open(path)
 	if err != nil {
 		return nil, err
@@ -226,11 +230,11 @@ func readEntries(path string) ([]Entry, error) {
 		}
 	}
 
-	entries := make([]Entry, 0)
+	entries := make([]indexing.Entry, 0)
 
 	scanner := bufio.NewScanner(reader)
 	for scanner.Scan() {
-		var entry Entry
+		var entry indexing.Entry
 		if err := json.Unmarshal(scanner.Bytes(), &entry); err != nil {
 			return nil, err
 		}
@@ -238,50 +242,9 @@ func readEntries(path string) ([]Entry, error) {
 		entries = append(entries, entry)
 	}
 
-	slices.SortFunc(entries, func(a Entry, b Entry) int {
+	slices.SortFunc(entries, func(a indexing.Entry, b indexing.Entry) int {
 		return strings.Compare(a.AudioDigest, b.AudioDigest)
 	})
 
 	return entries, nil
-}
-
-func mapEntryToDataEntry(entry Entry) report.DataEntry {
-	metadata := make([]report.MetadataEntry, 0)
-
-	artist := ""
-	album := ""
-	trackNumber := ""
-	title := ""
-
-	// TODO: Just do some actual text diff and format it nicely?
-	for _, v := range entry.Metadata {
-		k, v, _ := strings.Cut(v, "=")
-
-		metadata = append(metadata, report.MetadataEntry{
-			Key:   k,
-			Value: v,
-		})
-
-		switch k {
-		case "ARTIST":
-			artist = v
-		case "ALBUM":
-			album = v
-		case "TRACKNUMBER":
-			trackNumber = v
-		case "TITLE":
-			title = v
-		}
-	}
-
-	return report.DataEntry{
-		ShortID:     entry.AudioDigest[7:12],
-		Artist:      artist,
-		Album:       album,
-		TrackNumber: trackNumber,
-		Title:       title,
-		FilePath:    entry.Path,
-		Metadata:    metadata,
-		Digest:      entry.AudioDigest,
-	}
 }

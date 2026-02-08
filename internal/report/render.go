@@ -3,6 +3,9 @@ package report
 import (
 	"html/template"
 	"io"
+	"strings"
+
+	"github.com/AlexGustafsson/steward/internal/indexing"
 )
 
 type DiffData struct {
@@ -16,14 +19,67 @@ type IndexData struct {
 }
 
 type DataEntry struct {
+	FilePath      string
+	FileDigest    string
+	AudioDigest   string
+	PictureDigest string
+
 	ShortID     string
 	Artist      string
 	Album       string
 	TrackNumber string
 	Title       string
-	FilePath    string
 	Metadata    []MetadataEntry
-	Digest      string
+}
+
+func DataEntryFromIndexEntry(entry indexing.Entry) DataEntry {
+	metadata := make([]MetadataEntry, 0)
+
+	artist := ""
+	album := ""
+	trackNumber := ""
+	title := ""
+
+	// TODO: Just do some actual text diff and format it nicely?
+	for _, v := range entry.Metadata {
+		k, v, _ := strings.Cut(v, "=")
+
+		metadata = append(metadata, MetadataEntry{
+			Key:   k,
+			Value: v,
+		})
+
+		switch k {
+		case "ARTIST":
+			artist = v
+		case "ALBUM":
+			album = v
+		case "TRACKNUMBER":
+			trackNumber = v
+		case "TITLE":
+			title = v
+		}
+	}
+
+	// Treat picture digest as a meta metadata entry for diffing
+	metadata = append(metadata, MetadataEntry{
+		Key:   "[picture]",
+		Value: entry.PictureDigest,
+	})
+
+	return DataEntry{
+		FilePath:      entry.Name,
+		FileDigest:    entry.FileDigest,
+		AudioDigest:   entry.AudioDigest,
+		PictureDigest: entry.PictureDigest,
+
+		ShortID:     entry.AudioDigest[7:12],
+		Artist:      artist,
+		Album:       album,
+		TrackNumber: trackNumber,
+		Title:       title,
+		Metadata:    metadata,
+	}
 }
 
 type MetadataEntry struct {

@@ -59,9 +59,17 @@
             <dd class="{{ $m.ValueClass }}">{{ $m.Value }}</dd>
             {{ end }}
           </dl>
-          <p>
-            <code>{{ $e.Digest }}</code>
-          </p>
+          <details>
+            <p>
+              <code>Audio Digest: {{ $e.AudioDigest }}</code>
+            </p>
+            <p>
+              <code>Picture Digest: {{ $e.FileDigest }}</code>
+            </p>
+            <p>
+              <code>File Digest: {{ $e.FileDigest }}</code>
+            </p>
+          </details>
         </div>
         {{ end }}
       </aside>
@@ -81,9 +89,17 @@
             <dd class="{{ $m.ValueClass }}">{{ $m.Value }}</dd>
             {{ end }}
           </dl>
-          <p>
-            <code>{{ $e.Digest }}</code>
-          </p>
+          <details>
+            <p>
+              <code>Audio Digest: {{ $e.AudioDigest }}</code>
+            </p>
+            <p>
+              <code>Picture Digest: {{ $e.FileDigest }}</code>
+            </p>
+            <p>
+              <code>File Digest: {{ $e.FileDigest }}</code>
+            </p>
+          </details>
         </div>
         {{ end }}
       </aside>

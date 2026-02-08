@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/AlexGustafsson/steward/internal/report"
+	"github.com/AlexGustafsson/steward/internal/indexing"
 	"github.com/rclone/rclone/fs"
 	"github.com/rclone/rclone/fs/hash"
 )
@@ -85,7 +85,7 @@ func (i *DiffFS) Put(ctx context.Context, in io.Reader, src fs.ObjectInfo, optio
 
 	// TODO: This will hash the audio data, might be unnecessary? Probably fast
 	// enough for us to ignore for now to keep code small and dump
-	entry, err := report.Index(file.Name(), file)
+	entry, err := indexing.IndexFile(file.Name(), file)
 	if err != nil {
 		return nil, err
 	}
@@ -95,7 +95,8 @@ func (i *DiffFS) Put(ctx context.Context, in io.Reader, src fs.ObjectInfo, optio
 		return nil, err
 	}
 
-	path := filepath.Join(src.Remote(), entry.FileName())
+	// path := filepath.Join(src.Remote(), entry.FileName())
+	path := filepath.Join(src.Remote(), "")
 
 	err = os.MkdirAll(filepath.Dir(path), os.ModePerm)
 	if err != nil {

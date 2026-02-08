@@ -14,6 +14,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/AlexGustafsson/steward/internal/indexing"
 	"github.com/AlexGustafsson/steward/internal/rclone"
 	rclonefs "github.com/rclone/rclone/fs"
 	"github.com/rclone/rclone/fs/accounting"
@@ -94,7 +95,7 @@ func upload(remote string, indexPath string) {
 		}
 	}
 
-	entries := make(chan Entry, 32)
+	entries := make(chan indexing.Entry, 32)
 
 	var wg sync.WaitGroup
 
@@ -111,7 +112,7 @@ func upload(remote string, indexPath string) {
 		wg.Go(func() {
 			for entry := range entries {
 				indexFS := &rclone.IndexFS{Entry: rclone.Entry{
-					Name:        entry.Path,
+					Name:        entry.Name,
 					ModTime:     entry.ModTime,
 					Size:        entry.Size,
 					Metadata:    entry.Metadata,
@@ -120,14 +121,14 @@ func upload(remote string, indexPath string) {
 				}}
 				algorithm, digest, _ := strings.Cut(entry.AudioDigest, ":")
 				name := filepath.Join("blobs", algorithm, digest)
-				rclone.Copy(ctx, indexFS, entry.Path, remoteFS, name)
+				rclone.Copy(ctx, indexFS, entry.Name, remoteFS, name)
 			}
 		})
 	}
 
 	scanner := bufio.NewScanner(reader)
 	for scanner.Scan() {
-		var entry Entry
+		var entry indexing.Entry
 		if err := json.Unmarshal(scanner.Bytes(), &entry); err != nil {
 			slog.Error("Failed to parse index", slog.Any("error", err))
 			failures++
