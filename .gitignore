@@ -1,2 +1,4 @@
 # TODO: Publicly available FLAC files
 internal/flac/testdata
+Steward.xcodeproj
+.DS_Store
