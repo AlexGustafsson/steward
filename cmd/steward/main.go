@@ -31,6 +31,8 @@ func main() {
 		a := os.Args[3]
 		b := os.Args[4]
 		download(remote, a, b)
+	case "patch":
+		panic("unimplemented")
 	default:
 		panic(fmt.Sprintf("usage: %s index|diff", os.Args[0]))
 	}
