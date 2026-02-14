@@ -5,16 +5,9 @@ struct IndexView: View {
     @Binding var inProgress: Bool
     
     var body: some View {
-        ZStack {
-            VStack {
-                Image(systemName: "arrow.up.folder").font(.largeTitle).foregroundStyle(.blue)
-                Text("Drag and drop folders to index").font(.largeTitle)
-                Button("Select folders") {
-                    
-                }.foregroundStyle(.blue)
-            }
-            Rectangle().stroke(style: StrokeStyle(lineWidth: 2, dash: [5]))
-        }.padding(EdgeInsets(top: 20, leading: 30, bottom: 30, trailing: 40))
+        SelectFoldersView(title: "Drag and drop folders to index")  { urls in
+            print(urls)
+    }
     }
 }
 

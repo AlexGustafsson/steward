@@ -14,7 +14,7 @@ struct ContentView: View {
                 }
             }
         )) {
-             UploadView(inProgress: $inProgress).tabItem{ Label("Upload", systemImage: "list.bullet").foregroundColor(inProgress ? .secondary : .primary) }.tag("upload")
+             UploadView().tabItem{ Label("Upload", systemImage: "list.bullet").foregroundColor(inProgress ? .secondary : .primary) }.tag("upload")
              DownloadView(inProgress: $inProgress).tabItem{ Label("Download", systemImage: "list.bullet").foregroundColor(inProgress ? .secondary : .primary) }.tag("download")
              IndexView(inProgress: $inProgress).tabItem{ Label("Index", systemImage: "list.bullet").foregroundColor(inProgress ? .secondary : .primary) }.tag("index")
          }
