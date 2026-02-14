@@ -1,8 +1,7 @@
 package main
 
 import (
-	"log/slog"
-	"os"
+	"fmt"
 	"strings"
 
 	"github.com/AlexGustafsson/steward/internal/indexing"
@@ -10,7 +9,7 @@ import (
 
 // Complain on duplicates.
 // TODO: Figure out what's sensible to do here.
-func bailOnDuplicates(entries []indexing.Entry) {
+func bailOnDuplicates(entries []indexing.Entry) error {
 	for _, entry := range entries {
 		identical := make([]string, 0)
 		for _, other := range entries {
@@ -19,8 +18,9 @@ func bailOnDuplicates(entries []indexing.Entry) {
 			}
 		}
 		if len(identical) > 1 {
-			slog.Error("There are duplicate songs (identical audio digest)", slog.String("paths", strings.Join(identical, ",")))
-			os.Exit(1)
+			return fmt.Errorf("duplicate songs (identical audio digest): %s", strings.Join(identical, ","))
 		}
 	}
+
+	return nil
 }

@@ -3,8 +3,8 @@ package main
 import (
 	"bufio"
 	"compress/gzip"
+	"context"
 	"encoding/json"
-	"fmt"
 	"io"
 	"os"
 	"os/exec"
@@ -14,21 +14,38 @@ import (
 
 	"github.com/AlexGustafsson/steward/internal/indexing"
 	"github.com/AlexGustafsson/steward/internal/report"
+	"github.com/urfave/cli/v3"
 )
 
-func diff(a string, b string) {
-	entriesA, err := readEntries(a)
-	if err != nil {
-		panic(err)
+func DiffAction(ctx context.Context, cmd *cli.Command) error {
+	local := cmd.StringArg("local")
+	if local == "" {
+		_ = cli.ShowAppHelp(cmd)
+		return ErrExit
 	}
 
-	entriesB, err := readEntries(b)
-	if err != nil {
-		panic(err)
+	remote := cmd.StringArg("remote")
+	if remote == "" {
+		_ = cli.ShowAppHelp(cmd)
+		return ErrExit
 	}
 
-	bailOnDuplicates(entriesA)
-	bailOnDuplicates(entriesB)
+	entriesA, err := readEntries(local)
+	if err != nil {
+		return err
+	}
+
+	entriesB, err := readEntries(remote)
+	if err != nil {
+		return err
+	}
+
+	if err := bailOnDuplicates(entriesA); err != nil {
+		return err
+	}
+	if err := bailOnDuplicates(entriesB); err != nil {
+		return err
+	}
 
 	onlyInA := make([]report.DataEntry, 0)
 	onlyInB := make([]report.DataEntry, 0)
@@ -55,42 +72,46 @@ func diff(a string, b string) {
 		}
 	}
 
-	renderOnlyA(onlyInA)
-	renderOnlyB(onlyInB)
-	renderDiff(inBoth)
+	encoder := json.NewEncoder(os.Stdout)
+	switch cmd.String("output") {
+	case "diff":
+		// Only output our version of the matching entries
+		for i := 0; i < len(inBoth); i += 2 {
+			encoder.Encode(inBoth[i])
+		}
+	case "c"
+	}
 }
 
-func renderOnlyA(entries []report.DataEntry) {
+func renderOnlyA(entries []report.DataEntry) error {
 	file, err := os.CreateTemp("", "steward-only-a-*.html")
 	if err != nil {
-		panic(err)
+		return err
 	}
 	defer file.Close()
 
-	if err := report.RenderIndex(file, "Yours", entries); err != nil {
-		panic(err)
+	if err := report.RenderIndex(file, "Only in local index", entries); err != nil {
+		return err
 	}
 
-	fmt.Println("Ours", file.Name())
-	_ = exec.Command("open", file.Name()).Run()
+	return exec.Command("open", file.Name()).Run()
 }
 
-func renderOnlyB(entries []report.DataEntry) {
+func renderOnlyB(entries []report.DataEntry) error {
 	file, err := os.CreateTemp("", "steward-only-a-*.html")
 	if err != nil {
-		panic(err)
+		return err
 	}
 	defer file.Close()
 
-	if err := report.RenderIndex(file, "Theirs", entries); err != nil {
+	if err := report.RenderIndex(file, "Only in remote index", entries); err != nil {
 		panic(err)
 	}
 
-	fmt.Println("Theirs", file.Name())
-	_ = exec.Command("open", file.Name()).Run()
+	return exec.Command("open", file.Name()).Run()
 }
 
-func renderDiff(entries []report.DataEntry) {
+func renderDiff(entries []report.DataEntry) error {
 	entriesA := make([]report.DataEntry, 0)
 	entriesB := make([]report.DataEntry, 0)
 
@@ -109,16 +130,15 @@ func renderDiff(entries []report.DataEntry) {
 
 	file, err := os.CreateTemp("", "steward-diff-*.html")
 	if err != nil {
-		panic(err)
+		return err
 	}
 	defer file.Close()
 
 	if err := report.RenderDiff(file, entriesA, entriesB); err != nil {
-		panic(err)
+		return err
 	}
 
-	fmt.Println("Diff", file.Name())
-	_ = exec.Command("open", file.Name()).Run()
+	return exec.Command("open", file.Name()).Run()
 }
 
 func diffMetadata(entriesA, entriesB []report.MetadataEntry) ([]report.MetadataEntry, []report.MetadataEntry) {

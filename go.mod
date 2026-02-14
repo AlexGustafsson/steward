@@ -1,10 +1,11 @@
 module github.com/AlexGustafsson/steward
 
-go 1.25.5
+go 1.26.0
 
 require (
 	github.com/rclone/rclone v1.72.1
 	github.com/stretchr/testify v1.11.1
+	github.com/urfave/cli/v3 v3.6.2
 )
 
 replace github.com/rclone/rclone v1.72.1 => /Users/alex/Documents/GitHub/rclone
