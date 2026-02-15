@@ -87,7 +87,7 @@ func UploadAction(ctx context.Context, cmd *cli.Command) error {
 	remoteFS, err := rclone.GetFS(ctx, cmd.String("to"))
 	if err != nil {
 		slog.Error("Failed to get remote", slog.Any("error", err))
-		return ErrExit
+		return ErrExit // TODO Actual error
 	}
 
 	indexPath := cmd.StringArg("index")
@@ -100,7 +100,7 @@ func UploadAction(ctx context.Context, cmd *cli.Command) error {
 		file, err := os.Open(indexPath)
 		if err != nil {
 			slog.Error("Failed to read index", slog.Any("error", err))
-			return ErrExit
+			return ErrExit // TODO Actual error
 		}
 		defer file.Close()
 		reader = file
@@ -110,7 +110,7 @@ func UploadAction(ctx context.Context, cmd *cli.Command) error {
 			reader, err = gzip.NewReader(reader)
 			if err != nil {
 				slog.Error("Failed to read index", slog.Any("error", err))
-				return ErrExit
+				return ErrExit // TODO Actual error
 			}
 		}
 	}
@@ -209,7 +209,7 @@ func UploadAction(ctx context.Context, cmd *cli.Command) error {
 			slog.Int64("bytesPending", v.GetBytesWithPending()),
 			slog.Any("lastError", v.GetLastError()),
 		)
-		return ErrExit
+		return ErrExit // TODO Actual error
 	} else {
 		slog.Info(
 			"Upload succeeded",

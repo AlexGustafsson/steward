@@ -20,12 +20,7 @@ func main() {
 				Name:      "index",
 				Action:    IndexAction,
 				Usage:     "recursively index all media in a directory",
-				ArgsUsage: "<directory>",
-				Arguments: []cli.Argument{
-					&cli.StringArg{
-						Name: "root",
-					},
-				},
+				ArgsUsage: "<directory> [directory, ...]",
 			},
 			{
 				Name:      "diff",

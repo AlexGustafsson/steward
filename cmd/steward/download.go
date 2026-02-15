@@ -55,7 +55,7 @@ func DownloadAction(ctx context.Context, cmd *cli.Command) error {
 		file, err := os.Open(indexPath)
 		if err != nil {
 			slog.Error("Failed to read index", slog.Any("error", err))
-			return ErrExit
+			return ErrExit // TODO Actual error
 		}
 		defer file.Close()
 		reader = file
@@ -65,7 +65,7 @@ func DownloadAction(ctx context.Context, cmd *cli.Command) error {
 			reader, err = gzip.NewReader(reader)
 			if err != nil {
 				slog.Error("Failed to read index", slog.Any("error", err))
-				return ErrExit
+				return ErrExit // TODO Actual error
 			}
 		}
 	}
