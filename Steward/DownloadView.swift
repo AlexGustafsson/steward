@@ -2,78 +2,102 @@ import SwiftUI
 import SwiftData
 
 struct DownloadView: View {
-    @Binding var inProgress: Bool
-
-    @State var downloading = false
-
-    @State var urls: [URL] = []
-    @State var isDropTargeted = false
-
+    @State var outputURL: URL? = nil
+    @State var filterURL: URL? = nil
+    @State var url: URL? = nil
+    @State var entries: [Entry]? = nil
+    
+    @State private var showDownloadProgressSheet: Bool = false
+    @State private var showCompletedSheet: Bool = false
+    @State private var showFailedSheet: Bool = false
+    
+    @State private var downloadProgress: Float = 0.0
+    @State private var downloadStatus: String = ""
+    
     var body: some View {
-            ZStack {
-                Rectangle().stroke(style: StrokeStyle(lineWidth: 2, dash: [5]))
-                VStack {
-                    Image(systemName: "arrow.up.folder").font(.largeTitle).foregroundStyle(.blue)
-                    Text("Drag and drop index").font(.largeTitle)
-                    Button("Select index") {
-                        let panel = NSOpenPanel()
-                       panel.allowsMultipleSelection = true
-                       panel.canChooseDirectories = true
-                        panel.canChooseFiles = false
-                       if panel.runModal() == .OK {
-                           self.urls = panel.urls
-                           self.inProgress = true
-                           self.downloading = true
-                       }
-                    }.foregroundStyle(.blue)
-                }
-            }.padding(EdgeInsets(top: 20, leading: 30, bottom: 30, trailing: 40))
-            .dropDestination(for: URL.self) { urls, _ in
-                print("got \(urls)")
-                // TODO: Validate URL
-                self.urls = urls
-                return true
-            } isTargeted: { targeted in
-                isDropTargeted = targeted
-            }
-            // .onDrop(of: ["public.url","public.file-url"], isTargeted: nil) { (items) -> Bool in
-            //             if let item = items.first {
-            //                 if let identifier = item.registeredTypeIdentifiers.first {
-            //                     print("onDrop with identifier = \(identifier)")
-            //                     if identifier == "public.url" || identifier == "public.file-url" {
-            //                         item.loadItem(forTypeIdentifier: identifier, options: nil) { (urlData, error) in
-            //                                 if let urlData = urlData as? Data {
-            //                                     let urll = NSURL(absoluteURLWithDataRepresentation: urlData, relativeTo: nil) as URL
-            //                                     print("got \(urll)")
-            //                                 }
-            //                         }
-            //                     }
-            //                 }
-            //                 return true
-            //             } else { print("item not here"); return false }
-            //         }
-            .sheet(isPresented: $downloading) {
-                print("Sheet dismissed!")
+        if entries == nil {
+            SelectIndexView(title: "Drag and drop index to download") { url in
+                self.url = url
+                
+                // TODO: Read and set self.entries
+                self.entries =  [
+                    Entry(id: "/user/alexg/1", disc: "1", track: "1", title: "Foo", album: "Wet wet wet", artist: "Wet wet wet", composer: nil),
+                    Entry(id: "/user/alexg/2", disc: "1", track: "2", title: "Bar", album: "Wet wet wet", artist: "Wet wet wet", composer: nil),
+                ];
+            }.sheet(isPresented: $showCompletedSheet) {
+                // TODO
             } content: {
-                VStack {
-                    ProgressView().padding(20)
-                    ScrollView {
-                        Text("Logs will show here")
-                    }.scrollIndicators(.visible)
-
-                    Spacer()
-                    HStack {
-                        Spacer()
-                        Button("Cancel", role: .destructive) {
-                            downloading = false
-                        }.foregroundStyle(.red)
+                StatusCompleteView()
+            }
+        } else {
+            ConfirmEntriesView(entries: entries!, confirmLabel: "Download", action: { confirmed in
+                if confirmed {
+                    let panel = NSOpenPanel()
+                     panel.allowsMultipleSelection = false
+                     panel.canChooseDirectories = true
+                      panel.canChooseFiles = false
+                     if panel.runModal() != .OK {
+                         return
+                     }
+                    
+                    self.outputURL = panel.url
+                    
+                    self.showDownloadProgressSheet = true
+                    
+                    // TODO
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 5) {
+                        self.showDownloadProgressSheet = false
+                        self.showCompletedSheet = true
+                        self.entries = nil
+                        self.url = nil
+                        withAnimation {
+                            self.downloadProgress = 1.0
+                        }
+                    }
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+                        withAnimation {
+                            self.downloadProgress = 0.5
+                        }
+                    }
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 4) {
+                        withAnimation {
+                            self.downloadProgress = 0.6
+                        }
+                    }
+                } else {
+                    self.entries = nil
+                    self.url = nil
+                    self.showDownloadProgressSheet = false
+                }
+            }).toolbar {
+                ToolbarItem( placement: .cancellationAction ) {
+                    Button {
+                        let panel = NSOpenPanel()
+                        panel.allowsMultipleSelection = false
+                        panel.canChooseDirectories = false
+                        panel.canChooseFiles = true
+                        panel.allowedContentTypes = [.json, .gzip]
+                         if panel.runModal() == .OK {
+                             filterURL = panel.url
+                         }
+                    } label: {
+                        Image(systemName: "pencil.and.list.clipboard")
                     }
                 }
+            }.sheet(isPresented: $showDownloadProgressSheet) {
+                // TODO
+                print("Sheet dismissed!")
+            } content: {
+                StatusView(progress: .known(self.downloadProgress), status: "Downloading")
+            }.sheet(isPresented: $showFailedSheet) {
+                // TODO
+            } content: {
+                Text("Failed!")
+            }
         }
     }
 }
 
 #Preview {
-    @Previewable @State var inProgress = false
-    DownloadView(inProgress: $inProgress)
+    UploadView()
 }

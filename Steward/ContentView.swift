@@ -14,9 +14,9 @@ struct ContentView: View {
                 }
             }
         )) {
+            IndexView().tabItem{ Label("Index", systemImage: "list.bullet").foregroundColor(inProgress ? .secondary : .primary) }.tag("index")
              UploadView().tabItem{ Label("Upload", systemImage: "list.bullet").foregroundColor(inProgress ? .secondary : .primary) }.tag("upload")
-             DownloadView(inProgress: $inProgress).tabItem{ Label("Download", systemImage: "list.bullet").foregroundColor(inProgress ? .secondary : .primary) }.tag("download")
-             IndexView().tabItem{ Label("Index", systemImage: "list.bullet").foregroundColor(inProgress ? .secondary : .primary) }.tag("index")
+             DownloadView().tabItem{ Label("Download", systemImage: "list.bullet").foregroundColor(inProgress ? .secondary : .primary) }.tag("download")
          }
     }
 }
