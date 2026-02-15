@@ -1,12 +1,14 @@
 package main
 
 import (
+	"bufio"
+	"compress/gzip"
 	"context"
-	"fmt"
+	"encoding/json"
+	"io"
 	"log/slog"
 	"os"
 	"path/filepath"
-	"slices"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -17,48 +19,10 @@ import (
 	rclonefs "github.com/rclone/rclone/fs"
 	"github.com/rclone/rclone/fs/accounting"
 	"github.com/rclone/rclone/fs/operations"
+	"github.com/urfave/cli/v3"
 )
 
-func download(remote string, a string, b string, root string) {
-	entriesA, err := readEntries(a)
-	if err != nil {
-		panic(err)
-	}
-
-	entriesB, err := readEntries(b)
-	if err != nil {
-		panic(err)
-	}
-
-	bailOnDuplicates(entriesA)
-	bailOnDuplicates(entriesB)
-
-	missing := make([]rclone.Entry, 0)
-
-	// TODO: Optimize if necessary
-	for _, entryB := range entriesB {
-		_, ok := slices.BinarySearchFunc(entriesA, entryB.AudioDigest, func(entryA indexing.Entry, digest string) int {
-			return strings.Compare(entryA.AudioDigest, digest)
-		})
-		if !ok {
-			missing = append(missing, rclone.Entry{
-				Name:        entryB.Name,
-				ModTime:     entryB.ModTime,
-				Size:        entryB.Size,
-				Metadata:    entryB.Metadata,
-				AudioDigest: entryB.AudioDigest,
-				FileDigest:  entryB.FileDigest,
-			})
-		}
-	}
-
-	fmt.Println("Found", len(missing), "missing item(s)")
-	if len(missing) == 0 {
-		return
-	}
-
-	ctx := context.Background()
-
+func DownloadAction(ctx context.Context, cmd *cli.Command) error {
 	ctx = operations.WithLogger(ctx, operations.LoggerFn(func(ctx context.Context, sigil operations.Sigil, src, dst rclonefs.DirEntry, err error) {
 		log := slog.With(slog.String("name", src.Remote()))
 
@@ -75,13 +39,38 @@ func download(remote string, a string, b string, root string) {
 	}))
 	ctx = accounting.WithStatsGroup(ctx, "download")
 
-	remoteFS, err := rclone.GetFS(ctx, remote)
+	remoteFS, err := rclone.GetFS(ctx, cmd.String("from"))
 	if err != nil {
 		slog.Error("Failed to read index", slog.Any("error", err))
 		os.Exit(1)
 	}
 
-	entries := make(chan rclone.Entry, 32)
+	indexPath := cmd.StringArg("index")
+	var reader io.ReadCloser
+	if indexPath == "" {
+		slog.Debug("Reading index from stdin")
+		reader = io.NopCloser(os.Stdin)
+	} else {
+		slog.Debug("Reading index from file")
+		file, err := os.Open(indexPath)
+		if err != nil {
+			slog.Error("Failed to read index", slog.Any("error", err))
+			return ErrExit
+		}
+		defer file.Close()
+		reader = file
+
+		if filepath.Ext(indexPath) == ".gz" {
+			var err error
+			reader, err = gzip.NewReader(reader)
+			if err != nil {
+				slog.Error("Failed to read index", slog.Any("error", err))
+				return ErrExit
+			}
+		}
+	}
+
+	entries := make(chan indexing.Entry, 32)
 
 	var wg sync.WaitGroup
 
@@ -116,11 +105,18 @@ func download(remote string, a string, b string, root string) {
 			for entry := range entries {
 				// NOTE: The index controls what files exist locally, so rerunning the
 				// command without rebuilding the index will re-download all files
-				diffFS := &rclone.DiffFS{Entry: entry}
+				diffFS := &rclone.DiffFS{Entry: rclone.Entry{
+					Name:        entry.Name,
+					ModTime:     entry.ModTime,
+					Size:        entry.Size,
+					Metadata:    entry.Metadata,
+					AudioDigest: entry.AudioDigest,
+					FileDigest:  entry.FileDigest,
+				}}
 				algorithm, digest, _ := strings.Cut(entry.AudioDigest, ":")
 				name := filepath.Join("blobs", algorithm, digest)
 				slog.Debug("Processing entry", slog.String("name", name))
-				err := rclone.Copy(ctx, remoteFS, name, diffFS, root)
+				err := rclone.Copy(ctx, remoteFS, name, diffFS, cmd.String("to"))
 				processedBytes.Add(uint64(entry.Size))
 				if err == nil {
 					successes.Add(1)
@@ -133,7 +129,15 @@ func download(remote string, a string, b string, root string) {
 		})
 	}
 
-	for _, entry := range missing {
+	scanner := bufio.NewScanner(reader)
+	for scanner.Scan() {
+		var entry indexing.Entry
+		if err := json.Unmarshal(scanner.Bytes(), &entry); err != nil {
+			slog.Error("Failed to parse index", slog.Any("error", err))
+			failures.Add(1)
+			break
+		}
+
 		totalBytes += uint64(entry.Size)
 		entries <- entry
 	}
@@ -179,4 +183,6 @@ func download(remote string, a string, b string, root string) {
 			slog.Any("lastError", v.GetLastError()),
 		)
 	}
+
+	return nil
 }

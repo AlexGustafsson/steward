@@ -5,9 +5,9 @@ import (
 	"compress/gzip"
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -18,223 +18,82 @@ import (
 )
 
 func DiffAction(ctx context.Context, cmd *cli.Command) error {
-	local := cmd.StringArg("local")
-	if local == "" {
+	localIndex := cmd.StringArg("local")
+	if localIndex == "" {
 		_ = cli.ShowAppHelp(cmd)
 		return ErrExit
 	}
 
-	remote := cmd.StringArg("remote")
-	if remote == "" {
+	remoteIndex := cmd.StringArg("remote")
+	if remoteIndex == "" {
 		_ = cli.ShowAppHelp(cmd)
 		return ErrExit
 	}
 
-	entriesA, err := readEntries(local)
+	localEntries, err := readEntriesFile(localIndex)
 	if err != nil {
 		return err
 	}
 
-	entriesB, err := readEntries(remote)
+	remoteEntries, err := readEntriesFile(remoteIndex)
 	if err != nil {
 		return err
 	}
 
-	if err := bailOnDuplicates(entriesA); err != nil {
+	if err := bailOnDuplicates(localEntries); err != nil {
 		return err
 	}
-	if err := bailOnDuplicates(entriesB); err != nil {
+	if err := bailOnDuplicates(remoteEntries); err != nil {
 		return err
 	}
 
-	onlyInA := make([]report.DataEntry, 0)
-	onlyInB := make([]report.DataEntry, 0)
+	onlyLocal := make([]report.DataEntry, 0)
+	onlyRemote := make([]report.DataEntry, 0)
 	inBoth := make([]report.DataEntry, 0)
 
 	// TODO: Optimize if necessary
-	for _, entryA := range entriesA {
-		i, ok := slices.BinarySearchFunc(entriesB, entryA.AudioDigest, func(entryB indexing.Entry, digest string) int {
-			return strings.Compare(entryB.AudioDigest, digest)
+	for _, localEntry := range localEntries {
+		i, ok := slices.BinarySearchFunc(remoteEntries, localEntry.AudioDigest, func(remoteEntry indexing.Entry, digest string) int {
+			return strings.Compare(remoteEntry.AudioDigest, digest)
 		})
 		if ok {
-			inBoth = append(inBoth, report.DataEntryFromIndexEntry(entryA), report.DataEntryFromIndexEntry(entriesB[i]))
+			inBoth = append(inBoth, report.DataEntryFromIndexEntry(localEntry), report.DataEntryFromIndexEntry(remoteEntries[i]))
 		} else {
-			onlyInA = append(onlyInA, report.DataEntryFromIndexEntry(entryA))
+			onlyLocal = append(onlyLocal, report.DataEntryFromIndexEntry(localEntry))
 		}
 	}
 
-	for _, entryB := range entriesB {
-		_, ok := slices.BinarySearchFunc(entriesA, entryB.AudioDigest, func(entryA indexing.Entry, digest string) int {
-			return strings.Compare(entryA.AudioDigest, digest)
+	for _, remoteEntry := range remoteEntries {
+		_, ok := slices.BinarySearchFunc(localEntries, remoteEntry.AudioDigest, func(localEntry indexing.Entry, digest string) int {
+			return strings.Compare(localEntry.AudioDigest, digest)
 		})
 		if !ok {
-			onlyInB = append(onlyInB, report.DataEntryFromIndexEntry(entryB))
+			onlyRemote = append(onlyRemote, report.DataEntryFromIndexEntry(remoteEntry))
 		}
 	}
 
 	encoder := json.NewEncoder(os.Stdout)
 	switch cmd.String("output") {
+	case "local-only":
+		for _, entry := range onlyLocal {
+			encoder.Encode(entry)
+		}
+	case "remote-only":
+		for _, entry := range onlyRemote {
+			encoder.Encode(entry)
+		}
 	case "diff":
-		// Only output our version of the matching entries
-		for i := 0; i < len(inBoth); i += 2 {
-			encoder.Encode(inBoth[i])
-		}
-	case "c"
+		panic("not implemented")
+	case "identical":
+		panic("not implemented")
+	default:
+		return fmt.Errorf("invalid output type")
 	}
+
+	return nil
 }
 
-func renderOnlyA(entries []report.DataEntry) error {
-	file, err := os.CreateTemp("", "steward-only-a-*.html")
-	if err != nil {
-		return err
-	}
-	defer file.Close()
-
-	if err := report.RenderIndex(file, "Only in local index", entries); err != nil {
-		return err
-	}
-
-	return exec.Command("open", file.Name()).Run()
-}
-
-func renderOnlyB(entries []report.DataEntry) error {
-	file, err := os.CreateTemp("", "steward-only-a-*.html")
-	if err != nil {
-		return err
-	}
-	defer file.Close()
-
-	if err := report.RenderIndex(file, "Only in remote index", entries); err != nil {
-		panic(err)
-	}
-
-	return exec.Command("open", file.Name()).Run()
-}
-
-func renderDiff(entries []report.DataEntry) error {
-	entriesA := make([]report.DataEntry, 0)
-	entriesB := make([]report.DataEntry, 0)
-
-	// Entries are interleaved - A then B
-	for i := 0; i < len(entries); i += 2 {
-		entryA := entries[i]
-		entryB := entries[i+1]
-
-		entryA.Metadata, entryB.Metadata = diffMetadata(entryA.Metadata, entryB.Metadata)
-
-		if len(entryA.Metadata) > 0 && len(entryB.Metadata) > 0 {
-			entriesA = append(entriesA, entryA)
-			entriesB = append(entriesB, entryB)
-		}
-	}
-
-	file, err := os.CreateTemp("", "steward-diff-*.html")
-	if err != nil {
-		return err
-	}
-	defer file.Close()
-
-	if err := report.RenderDiff(file, entriesA, entriesB); err != nil {
-		return err
-	}
-
-	return exec.Command("open", file.Name()).Run()
-}
-
-func diffMetadata(entriesA, entriesB []report.MetadataEntry) ([]report.MetadataEntry, []report.MetadataEntry) {
-	outA := make([]report.MetadataEntry, 0)
-	outB := make([]report.MetadataEntry, 0)
-
-	// Assume entries are sorted, meaning we can loop through them both
-	// simultaneously, "pausing" as necessary
-	i := 0
-	j := 0
-	for i < len(entriesA) && j < len(entriesB) {
-		a := entriesA[i]
-		b := entriesB[j]
-
-		switch strings.Compare(a.Key, b.Key) {
-		case 0:
-			if a.Value != b.Value {
-				a.ValueClass = "diff"
-				b.ValueClass = "diff"
-				outA = append(outA, a)
-				outB = append(outB, b)
-			}
-
-			i++
-			j++
-		case -1:
-			a.KeyClass = "added"
-			a.ValueClass = "added"
-
-			outA = append(outA, a)
-
-			outB = append(outB, report.MetadataEntry{
-				Key:        a.Key,
-				Value:      a.Value,
-				KeyClass:   "removed",
-				ValueClass: "removed",
-			})
-
-			i++
-		case +1:
-			b.KeyClass = "added"
-			b.ValueClass = "added"
-
-			outA = append(outA, report.MetadataEntry{
-				Key:        b.Key,
-				Value:      b.Value,
-				KeyClass:   "removed",
-				ValueClass: "removed",
-			})
-
-			outB = append(outB, b)
-
-			j++
-		}
-	}
-
-	// Drain remaining A
-	for i < len(entriesA) {
-		a := entriesA[i]
-		a.KeyClass = "added"
-		a.ValueClass = "added"
-
-		outA = append(outA, a)
-
-		outB = append(outB, report.MetadataEntry{
-			Key:        a.Key,
-			Value:      a.Value,
-			KeyClass:   "removed",
-			ValueClass: "removed",
-		})
-
-		i++
-	}
-
-	// Drain remaining B
-	for j < len(entriesB) {
-		b := entriesB[j]
-		b.KeyClass = "added"
-		b.ValueClass = "added"
-
-		outA = append(outA, report.MetadataEntry{
-			Key:        b.Key,
-			Value:      b.Value,
-			KeyClass:   "removed",
-			ValueClass: "removed",
-		})
-
-		outB = append(outB, b)
-
-		j++
-	}
-
-	return outA, outB
-}
-
-func readEntries(path string) ([]indexing.Entry, error) {
+func readEntriesFile(path string) ([]indexing.Entry, error) {
 	file, err := os.Open(path)
 	if err != nil {
 		return nil, err
@@ -250,9 +109,13 @@ func readEntries(path string) ([]indexing.Entry, error) {
 		}
 	}
 
+	return readEntries(reader)
+}
+
+func readEntries(r io.Reader) ([]indexing.Entry, error) {
 	entries := make([]indexing.Entry, 0)
 
-	scanner := bufio.NewScanner(reader)
+	scanner := bufio.NewScanner(r)
 	for scanner.Scan() {
 		var entry indexing.Entry
 		if err := json.Unmarshal(scanner.Bytes(), &entry); err != nil {

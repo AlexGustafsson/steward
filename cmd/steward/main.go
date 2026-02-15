@@ -31,7 +31,7 @@ func main() {
 				Name:      "diff",
 				Action:    DiffAction,
 				Usage:     "diff two indexes",
-				ArgsUsage: "<your index> <their index>",
+				ArgsUsage: "<local index> <remote index>",
 				Arguments: []cli.Argument{
 					&cli.StringArg{
 						Name: "local",
@@ -59,22 +59,43 @@ func main() {
 				},
 			},
 			{
-				Name:   "upload",
-				Action: UploadAction,
-				Usage:  "upload files",
+				Name:      "upload",
+				Action:    UploadAction,
+				Usage:     "upload files",
+				ArgsUsage: "[index]",
 				Arguments: []cli.Argument{
 					&cli.StringArg{
-						Name: "index", // TODO: read from stdin otherwise
+						Name: "index",
+					},
+				},
+				Flags: []cli.Flag{
+					&cli.StringFlag{
+						Name:     "to",
+						Required: true,
+					},
+					&cli.BoolFlag{
+						Name: "force",
 					},
 				},
 			},
 			{
-				Name:   "download",
-				Usage:  "download files",
-				Action: DownloadAction,
+				Name:      "download",
+				Usage:     "download files",
+				Action:    DownloadAction,
+				ArgsUsage: "[index]",
 				Arguments: []cli.Argument{
 					&cli.StringArg{
-						Name: "index", // TODO: read from stdin otherwise
+						Name: "index",
+					},
+				},
+				Flags: []cli.Flag{
+					&cli.StringFlag{
+						Name:     "from",
+						Required: true,
+					},
+					&cli.StringFlag{
+						Name:     "to",
+						Required: true,
 					},
 				},
 			},

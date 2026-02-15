@@ -19,13 +19,16 @@ import (
 	rclonefs "github.com/rclone/rclone/fs"
 	"github.com/rclone/rclone/fs/accounting"
 	"github.com/rclone/rclone/fs/operations"
+	"github.com/urfave/cli/v3"
 )
 
-func upload(remote string, indexPath string) {
-	ctx := context.Background()
-
+func UploadAction(ctx context.Context, cmd *cli.Command) error {
 	// During upload, assume it's there if the file name is there, unless forcing
-	force := false
+	force := cmd.Bool("force")
+	if force {
+		slog.Warn("Force enabled - remote file metadata will be overwritten")
+	}
+
 	ctx = operations.WithEqualFn(ctx, func(ctx context.Context, src rclonefs.ObjectInfo, dst rclonefs.Object) bool {
 		log := slog.With(slog.String("name", src.Remote()))
 
@@ -81,12 +84,13 @@ func upload(remote string, indexPath string) {
 	}))
 	ctx = accounting.WithStatsGroup(ctx, "upload")
 
-	remoteFS, err := rclone.GetFS(ctx, remote)
+	remoteFS, err := rclone.GetFS(ctx, cmd.String("to"))
 	if err != nil {
 		slog.Error("Failed to get remote", slog.Any("error", err))
-		os.Exit(1)
+		return ErrExit
 	}
 
+	indexPath := cmd.StringArg("index")
 	var reader io.ReadCloser
 	if indexPath == "" {
 		slog.Debug("Reading index from stdin")
@@ -96,7 +100,7 @@ func upload(remote string, indexPath string) {
 		file, err := os.Open(indexPath)
 		if err != nil {
 			slog.Error("Failed to read index", slog.Any("error", err))
-			os.Exit(1)
+			return ErrExit
 		}
 		defer file.Close()
 		reader = file
@@ -106,7 +110,7 @@ func upload(remote string, indexPath string) {
 			reader, err = gzip.NewReader(reader)
 			if err != nil {
 				slog.Error("Failed to read index", slog.Any("error", err))
-				os.Exit(1)
+				return ErrExit
 			}
 		}
 	}
@@ -205,7 +209,7 @@ func upload(remote string, indexPath string) {
 			slog.Int64("bytesPending", v.GetBytesWithPending()),
 			slog.Any("lastError", v.GetLastError()),
 		)
-		os.Exit(1)
+		return ErrExit
 	} else {
 		slog.Info(
 			"Upload succeeded",
@@ -223,4 +227,6 @@ func upload(remote string, indexPath string) {
 			slog.Any("lastError", v.GetLastError()),
 		)
 	}
+
+	return nil
 }
