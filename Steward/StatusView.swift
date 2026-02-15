@@ -1,15 +1,25 @@
 import SwiftUI
 import SwiftData
 
+enum Progress {
+    case known(Float)
+    case unknown
+}
+
 struct StatusView: View {
-    public var progress: Float
+    public var progress: Progress
     public var status: String
     
     @Environment(\.dismiss) private var dismiss
     
     var body: some View {
         VStack{
-            ProgressView(value: progress).progressViewStyle(.circular).padding(20)
+            switch progress {
+            case let .known(progress):
+                ProgressView(value: progress).progressViewStyle(.circular).padding(20)
+            default:
+                ProgressView().padding(20)
+            }
             Text(status)
             }.padding()
                 .toolbar {
@@ -22,5 +32,6 @@ struct StatusView: View {
 }
 
 #Preview {
-    StatusView(progress: 0.2, status: "Downloading")
+    StatusView(progress: .known(0.2), status: "Downloading")
+    StatusView(progress: .unknown, status: "Indexing")
 }

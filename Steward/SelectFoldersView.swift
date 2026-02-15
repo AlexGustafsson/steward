@@ -18,7 +18,7 @@ struct SelectFoldersView: View {
             Rectangle().stroke(style: StrokeStyle(lineWidth: 2, dash: [5])).foregroundStyle(.gray)
             VStack {
                 Image(systemName: "arrow.up.folder").font(.largeTitle).foregroundStyle(.gray)
-                Text("Drag and drop folders to upload").font(.largeTitle).foregroundStyle(.gray)
+                Text(title).font(.largeTitle).foregroundStyle(.gray)
                 Button("Select folders") {
                   let panel = NSOpenPanel()
                    panel.allowsMultipleSelection = true

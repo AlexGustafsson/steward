@@ -32,7 +32,7 @@ struct UploadView: View {
                 // TODO
                 print("Dismissed")
             } content: {
-                ProgressView()
+                StatusView(progress: .unknown, status: "Indexing")
             }.sheet(isPresented: $showCompletedSheet) {
                 // TODO
             } content: {
@@ -87,7 +87,7 @@ struct UploadView: View {
                 // TODO
                 print("Sheet dismissed!")
             } content: {
-                StatusView(progress: self.uploadProgress, status: "Uploading")
+                StatusView(progress: .known(self.uploadProgress), status: "Uploading")
             }.sheet(isPresented: $showFailedSheet) {
                 // TODO
             } content: {
