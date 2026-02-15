@@ -39,7 +39,7 @@ struct UploadView: View {
                 StatusCompleteView()
             }
         } else {
-            ConfirmEntriesView(entries: entries!, action: { confirmed in
+            ConfirmEntriesView(entries: entries!, confirmLabel: "Upload", action: { confirmed in
                 if confirmed {
                     self.showUploadProgressSheet = true
                     
