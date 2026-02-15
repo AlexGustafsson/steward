@@ -21,7 +21,7 @@ struct ConfirmEntriesView: View {
     
     var body: some View {
         VStack{
-            EntriesTable(entries: entries)
+            EntriesTable(entries: $entries)
             HStack{
                 Spacer()
                 Button("Cancel") {
