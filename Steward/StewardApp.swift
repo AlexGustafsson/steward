@@ -7,5 +7,9 @@ struct StewardApp: App {
         WindowGroup {
             ContentView()
         }
+        
+        Settings {
+            SettingsView()
+        }
     }
 }
