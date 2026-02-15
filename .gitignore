@@ -2,3 +2,4 @@
 internal/flac/testdata
 Steward.xcodeproj
 .DS_Store
+/build

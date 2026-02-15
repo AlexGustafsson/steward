@@ -9,6 +9,12 @@ targets:
     deploymentTarget:
       macOS: 26.0
     sources: [Steward]
+    dependencies:
+      - target: StewardTool
+        embed: true
+        codeSign: true
+        copy:
+          destination: executables
     entitlements:
       path: Steward/Steward.entitlements
       properties:
@@ -22,3 +28,18 @@ targets:
       ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
       ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS: YES
       ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
+
+  # SEE: https://developer.apple.com/documentation/xcode/embedding-a-helper-tool-in-a-sandboxed-app
+  StewardTool:
+    type: tool
+    platform: macOS
+    sources: []
+    settings:
+      CODE_SIGN_STYLE: Automatic
+      SKIP_INSTALL: true
+      CODE_SIGN_INJECT_BASE_ENTITLEMENTS: false
+    prebuildScripts:
+      - name: Build Go binary
+        script: |
+          echo "Building Go binary..."
+          GOOS=darwin GOARCH=arm64 /opt/homebrew/bin/go build -o "$BUILT_PRODUCTS_DIR/$TARGET_NAME" ./cmd/steward/...
