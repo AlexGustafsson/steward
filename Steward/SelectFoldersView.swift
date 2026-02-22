@@ -6,6 +6,10 @@ struct SelectFoldersView: View {
 
     @State private var isHovering: Bool = false
     
+    @AppStorage("configFileBookmark") private var configFileBookmark: Data = .init()
+    
+    @Environment(\.isEnabled) private var isEnabled
+    
     let action: ([URL]) -> Void
     
     init(title: String, action: @escaping ([URL]) -> Void) {
@@ -15,10 +19,10 @@ struct SelectFoldersView: View {
    
     var body: some View {
         ZStack {
-            Rectangle().stroke(style: StrokeStyle(lineWidth: 2, dash: [5])).foregroundStyle(.gray)
+            Rectangle().stroke(style: StrokeStyle(lineWidth: 2, dash: [5])).foregroundStyle(.gray.opacity(isEnabled ? 1.0 : 0.3))
             VStack {
-                Image(systemName: "arrow.up.folder").font(.largeTitle).foregroundStyle(.gray)
-                Text(title).font(.largeTitle).foregroundStyle(.gray)
+                Image(systemName: "arrow.up.folder").font(.largeTitle).foregroundStyle(.gray.opacity(isEnabled ? 1.0 : 0.3))
+                Text(title).font(.largeTitle).foregroundStyle(.gray.opacity(isEnabled ? 1.0 : 0.3))
                 Button("Select folders") {
                   let panel = NSOpenPanel()
                    panel.allowsMultipleSelection = true

@@ -14,6 +14,8 @@ struct DownloadView: View {
     @State private var downloadProgress: Float = 0.0
     @State private var downloadStatus: String = ""
     
+    @AppStorage("configFileBookmark") private var configFileBookmark: Data = .init()
+    
     var body: some View {
         if entries == nil {
             SelectIndexView(title: "Drag and drop index to download") { url in
@@ -43,6 +45,33 @@ struct DownloadView: View {
                     self.outputURL = panel.url
                     
                     self.showDownloadProgressSheet = true
+                    
+                    do {
+                        var stale = false
+                        let url = try URL(resolvingBookmarkData: configFileBookmark, options: [.withSecurityScope], relativeTo: nil, bookmarkDataIsStale: &stale)
+                        
+                        if stale {
+                            // TODO: Fix?
+                            print("stale data")
+                            
+                            configFileBookmark = .init()
+                            return
+                        }
+                        
+                        let accessing = url.startAccessingSecurityScopedResource()
+                        if !accessing {
+                            print("failed to read")
+                            return
+                        }
+                        
+                        // TODO: Upload
+                        print(url.absoluteString)
+                        
+                        url.stopAccessingSecurityScopedResource()
+                    } catch {
+                      print(error)
+                      return
+                    }
                     
                     // TODO
                     DispatchQueue.main.asyncAfter(deadline: .now() + 5) {
