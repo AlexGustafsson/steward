@@ -60,6 +60,8 @@ func UploadAction(ctx context.Context, cmd *cli.Command) error {
 
 	var wg sync.WaitGroup
 
+	var stats storage.ReadStats
+
 	var failures atomic.Uint64
 	var successes atomic.Uint64
 
@@ -69,21 +71,14 @@ func UploadAction(ctx context.Context, cmd *cli.Command) error {
 	ticker := time.NewTicker(1 * time.Second)
 	go func() {
 		for range ticker.C {
-			// TODO: Reimplement stats gathering
-			// v := accounting.Stats(ctx)
-			// progress := float64(processedBytes.Load()) / float64(totalBytes)
-			// slog.Debug(
-			// 	"Upload in progress",
-			// 	slog.Float64("progress", progress),
-			// 	slog.Uint64("totalBytes", totalBytes),
-			// 	slog.Uint64("processedBytes", processedBytes.Load()),
-			// 	slog.Int64("uploadedBytes", v.GetBytes()),
-			// 	slog.Int64("transfers", v.GetTransfers()),
-			// 	slog.Int64("checks", v.GetChecks()),
-			// 	slog.Int64("errors", v.GetErrors()),
-			// 	slog.Int64("bytesPending", v.GetBytesWithPending()),
-			// 	slog.Any("lastError", v.GetLastError()),
-			// )
+			progress := float64(processedBytes.Load()) / float64(totalBytes)
+			slog.Debug(
+				"Upload in progress",
+				slog.Float64("progress", progress),
+				slog.Uint64("totalBytes", totalBytes),
+				slog.Uint64("processedBytes", processedBytes.Load()),
+				slog.Uint64("uploadedBytes", stats.Bytes.Load()),
+			)
 		}
 	}()
 
@@ -107,6 +102,7 @@ func UploadAction(ctx context.Context, cmd *cli.Command) error {
 						slog.Debug("Local file name already exists but force enabled - uploading")
 					} else {
 						slog.Debug("Local file name already exists - skipping")
+						processedBytes.Add(uint64(entry.Size))
 						continue
 					}
 				} else {
@@ -122,7 +118,7 @@ func UploadAction(ctx context.Context, cmd *cli.Command) error {
 
 				md5sum := md5.New()
 
-				_, err = io.Copy(md5sum, file)
+				fileSize, err := io.Copy(md5sum, file)
 				if err != nil {
 					slog.Warn("Failed to upload entry", slog.Any("error", err))
 					failures.Add(1)
@@ -143,10 +139,11 @@ func UploadAction(ctx context.Context, cmd *cli.Command) error {
 				if blobEntryExists && blobEntry.Digest == fileDigest {
 					slog.Debug("Local file matches remote - skipping")
 					file.Close()
+					processedBytes.Add(uint64(entry.Size))
 					continue
 				}
 
-				err = remote.PutBlob(ctx, blobKey, file, fileDigest)
+				err = remote.PutBlob(ctx, blobKey, stats.NewReader(file), fileDigest, fileSize)
 				file.Close()
 				processedBytes.Add(uint64(entry.Size))
 				if err == nil {
@@ -177,42 +174,33 @@ func UploadAction(ctx context.Context, cmd *cli.Command) error {
 	wg.Wait()
 	ticker.Stop()
 
-	// v := accounting.Stats(ctx)
-
-	// progress := float64(processedBytes.Load()) / float64(totalBytes)
+	progress := float64(processedBytes.Load()) / float64(totalBytes)
 	if failures.Load() > 0 {
-		// slog.Error(
-		// 	"Upload failed",
-		// 	slog.Uint64("failures", failures.Load()),
-		// 	slog.Uint64("successes", successes.Load()),
+		slog.Error(
+			"Upload failed",
+			slog.Uint64("failures", failures.Load()),
+			slog.Uint64("successes", successes.Load()),
 
-		// 	slog.Float64("progress", progress),
-		// 	slog.Uint64("totalBytes", totalBytes),
-		// 	slog.Uint64("processedBytes", processedBytes.Load()),
-		// 	slog.Int64("uploadedBytes", v.GetBytes()),
-		// 	slog.Int64("transfers", v.GetTransfers()),
-		// 	slog.Int64("checks", v.GetChecks()),
-		// 	slog.Int64("errors", v.GetErrors()),
-		// 	slog.Int64("bytesPending", v.GetBytesWithPending()),
-		// 	slog.Any("lastError", v.GetLastError()),
-		// )
+			slog.Float64("progress", progress),
+			slog.Uint64("totalBytes", totalBytes),
+			slog.Uint64("processedBytes", processedBytes.Load()),
+			slog.Uint64("uploadedBytes", stats.Bytes.Load()),
+		)
 		return ErrExit // TODO Actual error
 	} else {
-		// slog.Info(
-		// 	"Upload succeeded",
-		// 	slog.Uint64("failures", failures.Load()),
-		// 	slog.Uint64("successes", successes.Load()),
+		slog.Info(
+			"Upload succeeded",
+			slog.Uint64("failures", failures.Load()),
+			slog.Uint64("successes", successes.Load()),
 
-		// 	slog.Float64("progress", progress),
-		// 	slog.Uint64("totalBytes", totalBytes),
-		// 	slog.Uint64("processedBytes", processedBytes.Load()),
-		// 	slog.Int64("uploadedBytes", v.GetBytes()),
-		// 	slog.Int64("transfers", v.GetTransfers()),
-		// 	slog.Int64("checks", v.GetChecks()),
-		// 	slog.Int64("errors", v.GetErrors()),
-		// 	slog.Int64("bytesPending", v.GetBytesWithPending()),
-		// 	slog.Any("lastError", v.GetLastError()),
-		// )
+			slog.Float64("progress", progress),
+			slog.Uint64("totalBytes", totalBytes),
+			slog.Uint64("processedBytes", processedBytes.Load()),
+			slog.Float64("progress", progress),
+			slog.Uint64("totalBytes", totalBytes),
+			slog.Uint64("processedBytes", processedBytes.Load()),
+			slog.Uint64("uploadedBytes", stats.Bytes.Load()),
+		)
 	}
 
 	return nil

@@ -18,6 +18,8 @@ func BackBlazeS3Endpoint(region string) string {
 	return fmt.Sprintf("https://s3.%s.backblazeb2.com", region)
 }
 
+var _ BlobStorage = (*S3Storage)(nil)
+
 type S3Storage struct {
 	client *s3.Client
 	bucket string
@@ -77,7 +79,7 @@ func (s *S3Storage) GetBlobs(ctx context.Context) (map[string]BlobInfo, error) {
 	return blobs, nil
 }
 
-func (s *S3Storage) PutBlob(ctx context.Context, key string, r io.Reader, digest string) error {
+func (s *S3Storage) PutBlob(ctx context.Context, key string, r io.Reader, digest string, size int64) error {
 	algorithm, digest, ok := strings.Cut(digest, ":")
 	if !ok {
 		return fmt.Errorf("invalid digest")
@@ -93,10 +95,11 @@ func (s *S3Storage) PutBlob(ctx context.Context, key string, r io.Reader, digest
 	}
 
 	_, err = s.client.PutObject(ctx, &s3.PutObjectInput{
-		Bucket:     aws.String(s.bucket),
-		Key:        aws.String(key),
-		Body:       r,
-		ContentMD5: aws.String(base64.StdEncoding.EncodeToString(md5sum)),
+		Bucket:        aws.String(s.bucket),
+		Key:           aws.String(key),
+		Body:          r,
+		ContentMD5:    aws.String(base64.StdEncoding.EncodeToString(md5sum)),
+		ContentLength: aws.Int64(size),
 	})
 	if err != nil {
 		return err

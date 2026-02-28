@@ -61,6 +61,8 @@ func DownloadAction(ctx context.Context, cmd *cli.Command) error {
 
 	var wg sync.WaitGroup
 
+	var stats storage.ReadStats
+
 	var failures atomic.Uint64
 	var successes atomic.Uint64
 
@@ -70,21 +72,14 @@ func DownloadAction(ctx context.Context, cmd *cli.Command) error {
 	ticker := time.NewTicker(1 * time.Second)
 	go func() {
 		for range ticker.C {
-			// TODO: Reimplement stats gathering
-			// v := accounting.Stats(ctx)
-			// progress := float64(processedBytes.Load()) / float64(totalBytes)
-			// slog.Debug(
-			// 	"Upload in progress",
-			// 	slog.Float64("progress", progress),
-			// 	slog.Uint64("totalBytes", totalBytes),
-			// 	slog.Uint64("processedBytes", processedBytes.Load()),
-			// 	slog.Int64("uploadedBytes", v.GetBytes()),
-			// 	slog.Int64("transfers", v.GetTransfers()),
-			// 	slog.Int64("checks", v.GetChecks()),
-			// 	slog.Int64("errors", v.GetErrors()),
-			// 	slog.Int64("bytesPending", v.GetBytesWithPending()),
-			// 	slog.Any("lastError", v.GetLastError()),
-			// )
+			progress := float64(processedBytes.Load()) / float64(totalBytes)
+			slog.Debug(
+				"Download in progress",
+				slog.Float64("progress", progress),
+				slog.Uint64("totalBytes", totalBytes),
+				slog.Uint64("processedBytes", processedBytes.Load()),
+				slog.Uint64("downloadedBytes", stats.Bytes.Load()),
+			)
 		}
 	}()
 
@@ -169,7 +164,7 @@ func DownloadAction(ctx context.Context, cmd *cli.Command) error {
 
 				r, _, err := remote.GetBlob(ctx, blobKey)
 
-				n, err := io.Copy(file, r)
+				n, err := io.Copy(file, stats.NewReader(r))
 				file.Close()
 				processedBytes.Add(uint64(n))
 				if err == nil {
@@ -200,41 +195,30 @@ func DownloadAction(ctx context.Context, cmd *cli.Command) error {
 	wg.Wait()
 	ticker.Stop()
 
-	// v := accounting.Stats(ctx)
-	// progress := float64(processedBytes.Load()) / float64(totalBytes)
+	progress := float64(processedBytes.Load()) / float64(totalBytes)
 	if failures.Load() > 0 {
-		// slog.Error(
-		// 	"Download failed",
-		// 	slog.Uint64("failures", failures.Load()),
-		// 	slog.Uint64("successes", successes.Load()),
+		slog.Error(
+			"Download failed",
+			slog.Uint64("failures", failures.Load()),
+			slog.Uint64("successes", successes.Load()),
 
-		// 	slog.Float64("progress", progress),
-		// 	slog.Uint64("totalBytes", totalBytes),
-		// 	slog.Uint64("processedBytes", processedBytes.Load()),
-		// 	slog.Int64("downloadedBytes", v.GetBytes()),
-		// 	slog.Int64("transfers", v.GetTransfers()),
-		// 	slog.Int64("checks", v.GetChecks()),
-		// 	slog.Int64("errors", v.GetErrors()),
-		// 	slog.Int64("bytesPending", v.GetBytesWithPending()),
-		// 	slog.Any("lastError", v.GetLastError()),
-		// )
+			slog.Float64("progress", progress),
+			slog.Uint64("totalBytes", totalBytes),
+			slog.Uint64("processedBytes", processedBytes.Load()),
+			slog.Uint64("downloadedBytes", stats.Bytes.Load()),
+		)
 		os.Exit(1)
 	} else {
-		// slog.Info(
-		// 	"Download succeeded",
-		// 	slog.Uint64("failures", failures.Load()),
-		// 	slog.Uint64("successes", successes.Load()),
+		slog.Info(
+			"Download succeeded",
+			slog.Uint64("failures", failures.Load()),
+			slog.Uint64("successes", successes.Load()),
 
-		// 	slog.Float64("progress", progress),
-		// 	slog.Uint64("totalBytes", totalBytes),
-		// 	slog.Uint64("processedBytes", processedBytes.Load()),
-		// 	slog.Int64("downloadedBytes", v.GetBytes()),
-		// 	slog.Int64("transfers", v.GetTransfers()),
-		// 	slog.Int64("checks", v.GetChecks()),
-		// 	slog.Int64("errors", v.GetErrors()),
-		// 	slog.Int64("bytesPending", v.GetBytesWithPending()),
-		// 	slog.Any("lastError", v.GetLastError()),
-		// )
+			slog.Float64("progress", progress),
+			slog.Uint64("totalBytes", totalBytes),
+			slog.Uint64("processedBytes", processedBytes.Load()),
+			slog.Uint64("downloadedBytes", stats.Bytes.Load()),
+		)
 	}
 
 	return nil

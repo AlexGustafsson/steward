@@ -6,11 +6,6 @@ import (
 	"time"
 )
 
-type Storage interface {
-	Put(context.Context) error
-	Get(context.Context) error
-}
-
 type BlobInfo struct {
 	Digest       string
 	LastModified time.Time
@@ -19,6 +14,6 @@ type BlobInfo struct {
 
 type BlobStorage interface {
 	GetBlobs(ctx context.Context) (map[string]BlobInfo, error)
-	PutBlob(ctx context.Context, key string, r io.Reader, digest string) error
+	PutBlob(ctx context.Context, key string, r io.Reader, digest string, size int64) error
 	GetBlob(ctx context.Context, key string) (io.ReadCloser, string, error)
 }
