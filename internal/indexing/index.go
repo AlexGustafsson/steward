@@ -13,13 +13,18 @@ import (
 	"github.com/AlexGustafsson/steward/internal/flac"
 )
 
+// AudioHashMaxSize controls the maximum number of audio bytes to use for
+// calculating the audio hash of a file.
+// The lower the value, the faster the processing, the higher the value, the
+// less likely it is that hashes will collide.
+const AudioHashMaxSize = 1024 * 1024 // 1MiB
+
 type Entry struct {
 	Name          string
 	ModTime       time.Time
 	Size          int64
 	Metadata      []string
 	AudioDigest   string
-	FileDigest    string
 	PictureDigest string
 }
 
@@ -58,17 +63,17 @@ func IndexFile(name string, file *os.File) (Entry, error) {
 		return Entry{}, err
 	}
 
-	fileHash := sha1.New()
-
-	reader, err := flac.NewFileReader(io.TeeReader(file, fileHash))
+	reader, err := flac.NewFileReader(file)
 	if err != nil {
 		return Entry{}, err
 	}
 
+	audioDataRead := int64(0)
 	audioHash := sha1.New()
 	pictureHash := sha1.New()
 
 	metadata := make([]string, 0)
+loop:
 	for {
 		r, metadataBlockType, err := reader.NextReader()
 		if err == io.EOF {
@@ -89,9 +94,13 @@ func IndexFile(name string, file *os.File) (Entry, error) {
 			}
 			slices.Sort(metadata)
 		case -1:
-			_, err := io.Copy(audioHash, r)
+			n, err := io.Copy(audioHash, io.LimitReader(r, 1024*1024-audioDataRead))
 			if err != nil {
 				return Entry{}, err
+			}
+			audioDataRead += n
+			if audioDataRead >= AudioHashMaxSize {
+				break loop
 			}
 		case 6:
 			_, err := io.Copy(pictureHash, r)
@@ -111,7 +120,6 @@ func IndexFile(name string, file *os.File) (Entry, error) {
 		ModTime:       stat.ModTime(),
 		Size:          stat.Size(),
 		AudioDigest:   "sha1:" + hex.EncodeToString(audioHash.Sum(nil)),
-		FileDigest:    "sha1:" + hex.EncodeToString(fileHash.Sum(nil)),
 		PictureDigest: "sha1:" + hex.EncodeToString(pictureHash.Sum(nil)),
 		Metadata:      metadata,
 	}, nil

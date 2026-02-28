@@ -111,7 +111,6 @@ func DownloadAction(ctx context.Context, cmd *cli.Command) error {
 					Size:        entry.Size,
 					Metadata:    entry.Metadata,
 					AudioDigest: entry.AudioDigest,
-					FileDigest:  entry.FileDigest,
 				}}
 				algorithm, digest, _ := strings.Cut(entry.AudioDigest, ":")
 				name := filepath.Join("blobs", algorithm, digest)

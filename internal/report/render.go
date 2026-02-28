@@ -20,7 +20,6 @@ type IndexData struct {
 
 type DataEntry struct {
 	FilePath      string
-	FileDigest    string
 	AudioDigest   string
 	PictureDigest string
 
@@ -69,7 +68,6 @@ func DataEntryFromIndexEntry(entry indexing.Entry) DataEntry {
 
 	return DataEntry{
 		FilePath:      entry.Name,
-		FileDigest:    entry.FileDigest,
 		AudioDigest:   entry.AudioDigest,
 		PictureDigest: entry.PictureDigest,
 

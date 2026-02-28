@@ -12,7 +12,6 @@ type Entry struct {
 	Size        int64
 	Metadata    []string
 	AudioDigest string
-	FileDigest  string
 }
 
 func (e Entry) BlobName() string {

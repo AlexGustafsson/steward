@@ -2,6 +2,8 @@ package rclone
 
 import (
 	"context"
+	"crypto/sha1"
+	"encoding/hex"
 	"io"
 	"os"
 	"time"
@@ -120,8 +122,20 @@ func (b *IndexObject) Hash(ctx context.Context, ty hash.Type) (string, error) {
 		return "", nil
 	}
 
-	// Trim leading "sha1-" prefix
-	return b.entry.FileDigest[5:], nil
+	file, err := os.Open(b.entry.Name)
+	if err != nil {
+		return "", err
+	}
+	defer file.Close()
+
+	hash := sha1.New()
+
+	_, err = io.Copy(hash, file)
+	if err != nil {
+		return "", err
+	}
+
+	return hex.EncodeToString(hash.Sum(nil)), nil
 }
 
 // ModTime implements fs.ObjectInfo.
