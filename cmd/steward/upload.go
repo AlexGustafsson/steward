@@ -4,6 +4,8 @@ import (
 	"bufio"
 	"compress/gzip"
 	"context"
+	"crypto/md5"
+	"encoding/hex"
 	"encoding/json"
 	"io"
 	"log/slog"
@@ -15,10 +17,7 @@ import (
 	"time"
 
 	"github.com/AlexGustafsson/steward/internal/indexing"
-	"github.com/AlexGustafsson/steward/internal/rclone"
-	rclonefs "github.com/rclone/rclone/fs"
-	"github.com/rclone/rclone/fs/accounting"
-	"github.com/rclone/rclone/fs/operations"
+	"github.com/AlexGustafsson/steward/internal/storage"
 	"github.com/urfave/cli/v3"
 )
 
@@ -26,69 +25,11 @@ func UploadAction(ctx context.Context, cmd *cli.Command) error {
 	// During upload, assume it's there if the file name is there, unless forcing
 	force := cmd.Bool("force")
 	if force {
-		slog.Warn("Force enabled - remote file metadata will be overwritten")
+		slog.Warn("Force enabled - remote files will be overwritten")
 	}
 
-	ctx = operations.WithEqualFn(ctx, func(ctx context.Context, src rclonefs.ObjectInfo, dst rclonefs.Object) bool {
-		log := slog.With(slog.String("name", src.Remote()))
-
-		// Leave it to rclone to decide, best effort
-		if force {
-			equal := operations.Equal(ctx, src, dst)
-
-			// TODO: This is a workaround for logger not being called when equal fn
-			// returns true
-			if equal {
-				log.Debug("Skipping file with equal content")
-			}
-			return equal
-		}
-
-		srcIndexObject, ok := src.(*rclone.IndexObject)
-		if !ok {
-			panic("unknown source object")
-		}
-
-		algorithm, digest, _ := strings.Cut(srcIndexObject.Entry().AudioDigest, ":")
-		expectedPath := filepath.Join("blobs", algorithm, digest)
-
-		// TODO: The contents could technically still differ, but for now let's not
-		// bother. If it's an issue, use force to perform hash-based matching
-		// instead Note that the important content is the audio data. Changes in
-		// metadata is not important when comparing the blobs as that can be
-		// restored separately, but remotes like B2 will report the actual file hash
-		equal := dst.Remote() == expectedPath
-
-		// TODO: This is a workaround for logger not being called when equal fn
-		// returns true
-		if equal {
-			log.Debug("Skipping file already in remote list")
-		}
-		return equal
-	})
-
-	// TODO: Not called when equal fn returns true?
-	ctx = operations.WithLogger(ctx, operations.LoggerFn(func(ctx context.Context, sigil operations.Sigil, src, dst rclonefs.DirEntry, err error) {
-		log := slog.With(slog.String("name", src.Remote()))
-
-		switch sigil {
-		case operations.MissingOnDst:
-			log.Debug("Local file is missing on remote")
-		case operations.Match:
-			log.Debug("Local and remote files match")
-		case operations.Differ:
-			log.Debug("Local and remote files differ")
-		case operations.TransferError:
-			log.Warn("Failed to upload file")
-		}
-	}))
-	ctx = accounting.WithStatsGroup(ctx, "upload")
-
-	remoteFS, err := rclone.GetFS(ctx, cmd.String("to"))
-	if err != nil {
-		slog.Error("Failed to get remote", slog.Any("error", err))
-		return ErrExit // TODO Actual error
-	}
+	// TODO: Config?
+	remote := storage.NewS3Storage(os.Getenv("B2_REGION"), storage.BackBlazeS3Endpoint(os.Getenv("B2_REGION")), os.Getenv("B2_KEY"), os.Getenv("B2_SECRET"), "", cmd.String("to"))
 
 	indexPath := cmd.StringArg("index")
 	var reader io.ReadCloser
@@ -128,38 +69,85 @@ func UploadAction(ctx context.Context, cmd *cli.Command) error {
 	ticker := time.NewTicker(1 * time.Second)
 	go func() {
 		for range ticker.C {
-			v := accounting.Stats(ctx)
-			progress := float64(processedBytes.Load()) / float64(totalBytes)
-			slog.Debug(
-				"Upload in progress",
-				slog.Float64("progress", progress),
-				slog.Uint64("totalBytes", totalBytes),
-				slog.Uint64("processedBytes", processedBytes.Load()),
-				slog.Int64("uploadedBytes", v.GetBytes()),
-				slog.Int64("transfers", v.GetTransfers()),
-				slog.Int64("checks", v.GetChecks()),
-				slog.Int64("errors", v.GetErrors()),
-				slog.Int64("bytesPending", v.GetBytesWithPending()),
-				slog.Any("lastError", v.GetLastError()),
-			)
+			// TODO: Reimplement stats gathering
+			// v := accounting.Stats(ctx)
+			// progress := float64(processedBytes.Load()) / float64(totalBytes)
+			// slog.Debug(
+			// 	"Upload in progress",
+			// 	slog.Float64("progress", progress),
+			// 	slog.Uint64("totalBytes", totalBytes),
+			// 	slog.Uint64("processedBytes", processedBytes.Load()),
+			// 	slog.Int64("uploadedBytes", v.GetBytes()),
+			// 	slog.Int64("transfers", v.GetTransfers()),
+			// 	slog.Int64("checks", v.GetChecks()),
+			// 	slog.Int64("errors", v.GetErrors()),
+			// 	slog.Int64("bytesPending", v.GetBytesWithPending()),
+			// 	slog.Any("lastError", v.GetLastError()),
+			// )
 		}
 	}()
+
+	// List all remote blobs
+	blobs, err := remote.GetBlobs(ctx)
+	if err != nil {
+		return err
+	}
 
 	for range 10 {
 		wg.Go(func() {
 			for entry := range entries {
 				slog.Debug("Processing entry", slog.String("name", entry.Name))
-				indexFS := &rclone.IndexFS{Entry: rclone.Entry{
-					Name:        entry.Name,
-					ModTime:     entry.ModTime,
-					Size:        entry.Size,
-					Metadata:    entry.Metadata,
-					AudioDigest: entry.AudioDigest,
-				}}
-				algorithm, digest, _ := strings.Cut(entry.AudioDigest, ":")
-				name := filepath.Join("blobs", algorithm, digest)
 
-				err := rclone.Copy(ctx, indexFS, entry.Name, remoteFS, name)
+				audioDigestAlgorithm, audioDigest, _ := strings.Cut(entry.AudioDigest, ":")
+				blobKey := filepath.Join("blobs", audioDigestAlgorithm, audioDigest)
+
+				blobEntry, blobEntryExists := blobs[blobKey]
+				if blobEntryExists {
+					if force {
+						slog.Debug("Local file name already exists but force enabled - uploading")
+					} else {
+						slog.Debug("Local file name already exists - skipping")
+						continue
+					}
+				} else {
+					slog.Debug("Local file missing in remote - uploading")
+				}
+
+				file, err := os.Open(entry.Name)
+				if err != nil {
+					slog.Warn("Failed to upload entry", slog.Any("error", err))
+					failures.Add(1)
+					continue
+				}
+
+				md5sum := md5.New()
+
+				_, err = io.Copy(md5sum, file)
+				if err != nil {
+					slog.Warn("Failed to upload entry", slog.Any("error", err))
+					failures.Add(1)
+					file.Close()
+					continue
+				}
+
+				_, err = file.Seek(0, 0)
+				if err != nil {
+					slog.Warn("Failed to upload entry", slog.Any("error", err))
+					failures.Add(1)
+					file.Close()
+					continue
+				}
+
+				fileDigest := "md5:" + hex.EncodeToString(md5sum.Sum(nil))
+
+				if blobEntryExists && blobEntry.Digest == fileDigest {
+					slog.Debug("Local file matches remote - skipping")
+					file.Close()
+					continue
+				}
+
+				err = remote.PutBlob(ctx, blobKey, file, fileDigest)
+				file.Close()
 				processedBytes.Add(uint64(entry.Size))
 				if err == nil {
 					successes.Add(1)
@@ -189,42 +177,42 @@ func UploadAction(ctx context.Context, cmd *cli.Command) error {
 	wg.Wait()
 	ticker.Stop()
 
-	v := accounting.Stats(ctx)
+	// v := accounting.Stats(ctx)
 
-	progress := float64(processedBytes.Load()) / float64(totalBytes)
+	// progress := float64(processedBytes.Load()) / float64(totalBytes)
 	if failures.Load() > 0 {
-		slog.Error(
-			"Upload failed",
-			slog.Uint64("failures", failures.Load()),
-			slog.Uint64("successes", successes.Load()),
+		// slog.Error(
+		// 	"Upload failed",
+		// 	slog.Uint64("failures", failures.Load()),
+		// 	slog.Uint64("successes", successes.Load()),
 
-			slog.Float64("progress", progress),
-			slog.Uint64("totalBytes", totalBytes),
-			slog.Uint64("processedBytes", processedBytes.Load()),
-			slog.Int64("uploadedBytes", v.GetBytes()),
-			slog.Int64("transfers", v.GetTransfers()),
-			slog.Int64("checks", v.GetChecks()),
-			slog.Int64("errors", v.GetErrors()),
-			slog.Int64("bytesPending", v.GetBytesWithPending()),
-			slog.Any("lastError", v.GetLastError()),
-		)
+		// 	slog.Float64("progress", progress),
+		// 	slog.Uint64("totalBytes", totalBytes),
+		// 	slog.Uint64("processedBytes", processedBytes.Load()),
+		// 	slog.Int64("uploadedBytes", v.GetBytes()),
+		// 	slog.Int64("transfers", v.GetTransfers()),
+		// 	slog.Int64("checks", v.GetChecks()),
+		// 	slog.Int64("errors", v.GetErrors()),
+		// 	slog.Int64("bytesPending", v.GetBytesWithPending()),
+		// 	slog.Any("lastError", v.GetLastError()),
+		// )
 		return ErrExit // TODO Actual error
 	} else {
-		slog.Info(
-			"Upload succeeded",
-			slog.Uint64("failures", failures.Load()),
-			slog.Uint64("successes", successes.Load()),
+		// slog.Info(
+		// 	"Upload succeeded",
+		// 	slog.Uint64("failures", failures.Load()),
+		// 	slog.Uint64("successes", successes.Load()),
 
-			slog.Float64("progress", progress),
-			slog.Uint64("totalBytes", totalBytes),
-			slog.Uint64("processedBytes", processedBytes.Load()),
-			slog.Int64("uploadedBytes", v.GetBytes()),
-			slog.Int64("transfers", v.GetTransfers()),
-			slog.Int64("checks", v.GetChecks()),
-			slog.Int64("errors", v.GetErrors()),
-			slog.Int64("bytesPending", v.GetBytesWithPending()),
-			slog.Any("lastError", v.GetLastError()),
-		)
+		// 	slog.Float64("progress", progress),
+		// 	slog.Uint64("totalBytes", totalBytes),
+		// 	slog.Uint64("processedBytes", processedBytes.Load()),
+		// 	slog.Int64("uploadedBytes", v.GetBytes()),
+		// 	slog.Int64("transfers", v.GetTransfers()),
+		// 	slog.Int64("checks", v.GetChecks()),
+		// 	slog.Int64("errors", v.GetErrors()),
+		// 	slog.Int64("bytesPending", v.GetBytesWithPending()),
+		// 	slog.Any("lastError", v.GetLastError()),
+		// )
 	}
 
 	return nil

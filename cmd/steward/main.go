@@ -92,6 +92,9 @@ func main() {
 						Name:     "to",
 						Required: true,
 					},
+					&cli.BoolFlag{
+						Name: "force",
+					},
 				},
 			},
 		},

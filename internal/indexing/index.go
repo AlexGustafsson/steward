@@ -1,7 +1,7 @@
 package indexing
 
 import (
-	"crypto/sha1"
+	"crypto/md5"
 	"encoding/hex"
 	"io"
 	"io/fs"
@@ -69,8 +69,8 @@ func IndexFile(name string, file *os.File) (Entry, error) {
 	}
 
 	audioDataRead := int64(0)
-	audioHash := sha1.New()
-	pictureHash := sha1.New()
+	audioHash := md5.New()
+	pictureHash := md5.New()
 
 	metadata := make([]string, 0)
 loop:
@@ -119,8 +119,8 @@ loop:
 		Name:          name,
 		ModTime:       stat.ModTime(),
 		Size:          stat.Size(),
-		AudioDigest:   "sha1:" + hex.EncodeToString(audioHash.Sum(nil)),
-		PictureDigest: "sha1:" + hex.EncodeToString(pictureHash.Sum(nil)),
+		AudioDigest:   "md5:" + hex.EncodeToString(audioHash.Sum(nil)),
+		PictureDigest: "md5:" + hex.EncodeToString(pictureHash.Sum(nil)),
 		Metadata:      metadata,
 	}, nil
 }

@@ -4,7 +4,10 @@ import (
 	"bufio"
 	"compress/gzip"
 	"context"
+	"crypto/md5"
+	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"io"
 	"log/slog"
 	"os"
@@ -15,35 +18,19 @@ import (
 	"time"
 
 	"github.com/AlexGustafsson/steward/internal/indexing"
-	"github.com/AlexGustafsson/steward/internal/rclone"
-	rclonefs "github.com/rclone/rclone/fs"
-	"github.com/rclone/rclone/fs/accounting"
-	"github.com/rclone/rclone/fs/operations"
+	"github.com/AlexGustafsson/steward/internal/storage"
 	"github.com/urfave/cli/v3"
 )
 
 func DownloadAction(ctx context.Context, cmd *cli.Command) error {
-	ctx = operations.WithLogger(ctx, operations.LoggerFn(func(ctx context.Context, sigil operations.Sigil, src, dst rclonefs.DirEntry, err error) {
-		log := slog.With(slog.String("name", src.Remote()))
-
-		switch sigil {
-		case operations.MissingOnSrc:
-			log.Debug("Remote file is missing locally")
-		case operations.Match:
-			log.Debug("Local and remote files match")
-		case operations.Differ:
-			log.Debug("Local and remote files differ")
-		case operations.TransferError:
-			log.Warn("Failed to download file")
-		}
-	}))
-	ctx = accounting.WithStatsGroup(ctx, "download")
-
-	remoteFS, err := rclone.GetFS(ctx, cmd.String("from"))
-	if err != nil {
-		slog.Error("Failed to read index", slog.Any("error", err))
-		os.Exit(1)
+	// During download, assume it's there if the file name is there, unless forcing
+	force := cmd.Bool("force")
+	if force {
+		slog.Warn("Force enabled - local files will be overwritten")
 	}
+
+	// TODO: Config?
+	remote := storage.NewS3Storage(os.Getenv("B2_REGION"), storage.BackBlazeS3Endpoint(os.Getenv("B2_REGION")), os.Getenv("B2_KEY"), os.Getenv("B2_SECRET"), "", cmd.String("from"))
 
 	indexPath := cmd.StringArg("index")
 	var reader io.ReadCloser
@@ -83,40 +70,108 @@ func DownloadAction(ctx context.Context, cmd *cli.Command) error {
 	ticker := time.NewTicker(1 * time.Second)
 	go func() {
 		for range ticker.C {
-			v := accounting.Stats(ctx)
-			progress := float64(processedBytes.Load()) / float64(totalBytes)
-			slog.Debug(
-				"Download in progress",
-				slog.Float64("progress", progress),
-				slog.Uint64("totalBytes", totalBytes),
-				slog.Uint64("processedBytes", processedBytes.Load()),
-				slog.Int64("downloadedBytes", v.GetBytes()),
-				slog.Int64("transfers", v.GetTransfers()),
-				slog.Int64("checks", v.GetChecks()),
-				slog.Int64("errors", v.GetErrors()),
-				slog.Int64("bytesPending", v.GetBytesWithPending()),
-				slog.Any("lastError", v.GetLastError()),
-			)
+			// TODO: Reimplement stats gathering
+			// v := accounting.Stats(ctx)
+			// progress := float64(processedBytes.Load()) / float64(totalBytes)
+			// slog.Debug(
+			// 	"Upload in progress",
+			// 	slog.Float64("progress", progress),
+			// 	slog.Uint64("totalBytes", totalBytes),
+			// 	slog.Uint64("processedBytes", processedBytes.Load()),
+			// 	slog.Int64("uploadedBytes", v.GetBytes()),
+			// 	slog.Int64("transfers", v.GetTransfers()),
+			// 	slog.Int64("checks", v.GetChecks()),
+			// 	slog.Int64("errors", v.GetErrors()),
+			// 	slog.Int64("bytesPending", v.GetBytesWithPending()),
+			// 	slog.Any("lastError", v.GetLastError()),
+			// )
 		}
 	}()
 
+	// List all remote blobs
+	blobs, err := remote.GetBlobs(ctx)
+	if err != nil {
+		return err
+	}
+
 	for range 10 {
 		wg.Go(func() {
+			// NOTE: Assumes that all entries are interesting, whereas when uploading,
+			// files are diffed and ignored if they already exist remotely. So index
+			// diffing is carried out beforehand
 			for entry := range entries {
-				// NOTE: The index controls what files exist locally, so rerunning the
-				// command without rebuilding the index will re-download all files
-				diffFS := &rclone.DiffFS{Entry: rclone.Entry{
-					Name:        entry.Name,
-					ModTime:     entry.ModTime,
-					Size:        entry.Size,
-					Metadata:    entry.Metadata,
-					AudioDigest: entry.AudioDigest,
-				}}
-				algorithm, digest, _ := strings.Cut(entry.AudioDigest, ":")
-				name := filepath.Join("blobs", algorithm, digest)
-				slog.Debug("Processing entry", slog.String("name", name))
-				err := rclone.Copy(ctx, remoteFS, name, diffFS, cmd.String("to"))
-				processedBytes.Add(uint64(entry.Size))
+				slog.Debug("Processing entry", slog.String("name", entry.Name))
+
+				audioDigestAlgorithm, audioDigest, _ := strings.Cut(entry.AudioDigest, ":")
+				blobKey := filepath.Join("blobs", audioDigestAlgorithm, audioDigest)
+
+				blobEntry, blobEntryExists := blobs[blobKey]
+				if !blobEntryExists {
+					slog.Warn("Indexed file does not exist in remote storage")
+					continue
+				}
+
+				name := filepath.Join(cmd.String("to"), FileName(entry))
+
+				err = os.MkdirAll(filepath.Dir(name), os.ModePerm)
+				if err != nil {
+					slog.Warn("Failed to download entry", slog.Any("error", err))
+					failures.Add(1)
+					continue
+				}
+
+				fileExists := true
+				file, err := os.OpenFile(name, os.O_RDWR, 0644)
+				if errors.Is(err, os.ErrNotExist) {
+					fileExists = false
+					file, err = os.OpenFile(name, os.O_WRONLY|os.O_CREATE, 0644)
+				}
+				if err != nil {
+					slog.Warn("Failed to download entry", slog.Any("error", err))
+					failures.Add(1)
+					continue
+				}
+
+				if fileExists {
+					if force {
+						slog.Debug("Local file name already exists but force enabled - downloading")
+
+						md5sum := md5.New()
+
+						_, err = io.Copy(md5sum, file)
+						if err != nil {
+							slog.Warn("Failed to upload entry", slog.Any("error", err))
+							failures.Add(1)
+							file.Close()
+							continue
+						}
+
+						_, err = file.Seek(0, 0)
+						if err != nil {
+							slog.Warn("Failed to upload entry", slog.Any("error", err))
+							failures.Add(1)
+							file.Close()
+							continue
+						}
+
+						fileDigest := "md5:" + hex.EncodeToString(md5sum.Sum(nil))
+
+						if blobEntry.Digest == fileDigest {
+							slog.Debug("Local file matches remote - skipping")
+							file.Close()
+							continue
+						}
+					} else {
+						slog.Debug("Local file name already exists - skipping")
+						continue
+					}
+				}
+
+				r, _, err := remote.GetBlob(ctx, blobKey)
+
+				n, err := io.Copy(file, r)
+				file.Close()
+				processedBytes.Add(uint64(n))
 				if err == nil {
 					successes.Add(1)
 				} else {
@@ -145,42 +200,41 @@ func DownloadAction(ctx context.Context, cmd *cli.Command) error {
 	wg.Wait()
 	ticker.Stop()
 
-	v := accounting.Stats(ctx)
-
-	progress := float64(processedBytes.Load()) / float64(totalBytes)
+	// v := accounting.Stats(ctx)
+	// progress := float64(processedBytes.Load()) / float64(totalBytes)
 	if failures.Load() > 0 {
-		slog.Error(
-			"Download failed",
-			slog.Uint64("failures", failures.Load()),
-			slog.Uint64("successes", successes.Load()),
+		// slog.Error(
+		// 	"Download failed",
+		// 	slog.Uint64("failures", failures.Load()),
+		// 	slog.Uint64("successes", successes.Load()),
 
-			slog.Float64("progress", progress),
-			slog.Uint64("totalBytes", totalBytes),
-			slog.Uint64("processedBytes", processedBytes.Load()),
-			slog.Int64("downloadedBytes", v.GetBytes()),
-			slog.Int64("transfers", v.GetTransfers()),
-			slog.Int64("checks", v.GetChecks()),
-			slog.Int64("errors", v.GetErrors()),
-			slog.Int64("bytesPending", v.GetBytesWithPending()),
-			slog.Any("lastError", v.GetLastError()),
-		)
+		// 	slog.Float64("progress", progress),
+		// 	slog.Uint64("totalBytes", totalBytes),
+		// 	slog.Uint64("processedBytes", processedBytes.Load()),
+		// 	slog.Int64("downloadedBytes", v.GetBytes()),
+		// 	slog.Int64("transfers", v.GetTransfers()),
+		// 	slog.Int64("checks", v.GetChecks()),
+		// 	slog.Int64("errors", v.GetErrors()),
+		// 	slog.Int64("bytesPending", v.GetBytesWithPending()),
+		// 	slog.Any("lastError", v.GetLastError()),
+		// )
 		os.Exit(1)
 	} else {
-		slog.Info(
-			"Download succeeded",
-			slog.Uint64("failures", failures.Load()),
-			slog.Uint64("successes", successes.Load()),
+		// slog.Info(
+		// 	"Download succeeded",
+		// 	slog.Uint64("failures", failures.Load()),
+		// 	slog.Uint64("successes", successes.Load()),
 
-			slog.Float64("progress", progress),
-			slog.Uint64("totalBytes", totalBytes),
-			slog.Uint64("processedBytes", processedBytes.Load()),
-			slog.Int64("downloadedBytes", v.GetBytes()),
-			slog.Int64("transfers", v.GetTransfers()),
-			slog.Int64("checks", v.GetChecks()),
-			slog.Int64("errors", v.GetErrors()),
-			slog.Int64("bytesPending", v.GetBytesWithPending()),
-			slog.Any("lastError", v.GetLastError()),
-		)
+		// 	slog.Float64("progress", progress),
+		// 	slog.Uint64("totalBytes", totalBytes),
+		// 	slog.Uint64("processedBytes", processedBytes.Load()),
+		// 	slog.Int64("downloadedBytes", v.GetBytes()),
+		// 	slog.Int64("transfers", v.GetTransfers()),
+		// 	slog.Int64("checks", v.GetChecks()),
+		// 	slog.Int64("errors", v.GetErrors()),
+		// 	slog.Int64("bytesPending", v.GetBytesWithPending()),
+		// 	slog.Any("lastError", v.GetLastError()),
+		// )
 	}
 
 	return nil
