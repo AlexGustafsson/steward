@@ -13,59 +13,59 @@ enum IndexerStatus {
 
 @MainActor
 class Indexer: ObservableObject {
-    @Published var status: IndexerStatus = .idle
+  @Published var status: IndexerStatus = .idle
 
-    private var task: Task<Void, Never>?
+  private var task: Task<Void, Never>?
 
-    func index(roots: [URL], outputPath: URL, _ callback: @escaping (Index) -> ()) {
-        self.cancel()
-        
-        task = Task {
-            FileManager.default.createFile(atPath: outputPath.path, contents: nil)
+  func index(roots: [URL], outputPath: URL, _ callback: @escaping (Index) -> Void) {
+    self.cancel()
 
-            guard let fileHandle = try? FileHandle(forWritingTo: outputPath) else {
-                print("Bad file handle")
-                return
-            }
-            
-            let toolURL = Bundle.main.bundleURL
-                            .appendingPathComponent("Contents/MacOS/StewardTool")
+    task = Task {
+      FileManager.default.createFile(atPath: outputPath.path, contents: nil)
 
-            let process = Process()
-              process.executableURL = toolURL
-            process.arguments = ["index"] + roots.map({x in x.path(percentEncoded: false)})
+      guard let fileHandle = try? FileHandle(forWritingTo: outputPath) else {
+        print("Bad file handle")
+        return
+      }
 
-            let stderr = Pipe()
-              process.standardOutput = fileHandle
-              process.standardError = stderr
+      let toolURL = Bundle.main.bundleURL
+        .appendingPathComponent("Contents/MacOS/StewardTool")
 
-            do {
-               await MainActor.run {
-                    self.status = .running
-                }
+      let process = Process()
+      process.executableURL = toolURL
+      process.arguments = ["index"] + roots.map({ x in x.path(percentEncoded: false) })
 
-                try process.run()
-                try fileHandle.close()
-                  process.waitUntilExit()
+      let stderr = Pipe()
+      process.standardOutput = fileHandle
+      process.standardError = stderr
 
-                  let data = stderr.fileHandleForReading.readDataToEndOfFile()
-                  let output = String(data: data, encoding: .utf8)!
-                print("Done \(output)")
-                await MainActor.run {
-                    let index = Index(raw: output)
-                    self.status = .succeeded(index)
-                    callback(index)
-                }
-            } catch {
-                print("Failed to run \(error)")
-                await MainActor.run {
-                    self.status = .failed(error)
-                }
-            }
+      do {
+        await MainActor.run {
+          self.status = .running
         }
-    }
 
-    func cancel() {
-        task?.cancel()
+        try process.run()
+        try fileHandle.close()
+        process.waitUntilExit()
+
+        let data = stderr.fileHandleForReading.readDataToEndOfFile()
+        let output = String(data: data, encoding: .utf8)!
+        print("Done \(output)")
+        await MainActor.run {
+          let index = Index(raw: output)
+          self.status = .succeeded(index)
+          callback(index)
+        }
+      } catch {
+        print("Failed to run \(error)")
+        await MainActor.run {
+          self.status = .failed(error)
+        }
+      }
     }
+  }
+
+  func cancel() {
+    task?.cancel()
+  }
 }
