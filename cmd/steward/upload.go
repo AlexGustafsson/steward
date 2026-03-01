@@ -24,8 +24,10 @@ func UploadAction(ctx context.Context, cmd *cli.Command) error {
 		slog.Warn("Force enabled - remote files will be overwritten")
 	}
 
-	// TODO: Config?
-	remote := storage.NewS3Storage(os.Getenv("B2_REGION"), storage.BackBlazeS3Endpoint(os.Getenv("B2_REGION")), os.Getenv("B2_KEY"), os.Getenv("B2_SECRET"), "", cmd.String("to"))
+	remote, err := storage.NewBlobStorage(cmd.String("to"))
+	if err != nil {
+		return err
+	}
 
 	indexPath := cmd.StringArg("index")
 	var reader io.ReadCloser

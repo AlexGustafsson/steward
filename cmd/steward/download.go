@@ -24,8 +24,10 @@ func DownloadAction(ctx context.Context, cmd *cli.Command) error {
 		slog.Warn("Force enabled - local files will be overwritten")
 	}
 
-	// TODO: Config?
-	remote := storage.NewS3Storage(os.Getenv("B2_REGION"), storage.BackBlazeS3Endpoint(os.Getenv("B2_REGION")), os.Getenv("B2_KEY"), os.Getenv("B2_SECRET"), "", cmd.String("from"))
+	remote, err := storage.NewBlobStorage(cmd.String("from"))
+	if err != nil {
+		return err
+	}
 
 	indexPath := cmd.StringArg("index")
 	var reader io.ReadCloser
