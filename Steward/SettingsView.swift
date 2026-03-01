@@ -3,57 +3,47 @@ import SwiftUI
 struct SettingsView: View {
     @State private var newConfig = ""
     
-    @AppStorage("configFileBookmark") private var configFileBookmark: Data = .init()
+    @State private var credentialsExist = try? CredentialsExist()
     
     @Environment(\.dismiss) private var dismiss
+    
+    @State private var key = ""
+    @State private var secret = ""
+    @State private var bucket = ""
+    
+    @State private var showCredentialsModal = false
     
     var body: some View {
         VStack(spacing: 0) {
             Form {
-                Section("Credentials") {
-                    if configFileBookmark.isEmpty {
-                        HStack{
-                            Text("Not selected")
+                if credentialsExist == true {
+                    Section("Credentials") {
+                        HStack {
+                            Text("Credentials have been configured.")
                             Spacer()
-                            Button("Select") {
-                                let panel = NSOpenPanel()
-                                panel.canChooseFiles = true
-                                panel.canChooseDirectories = false
-                                if panel.runModal() == .OK {
-                                    do {
-                                        let bookmark = try panel.url!.bookmarkData(options:  [.withSecurityScope, .securityScopeAllowOnlyReadAccess])
-                                        configFileBookmark = bookmark
-                                    } catch {
-                                        print("failed to bookmark file")
-                                    }
-                                }
+                            Button("Edit...") {
+                                showCredentialsModal = true
                             }
+                        }.sheet(isPresented: $showCredentialsModal) {
+                            CredentialsView()
                         }
-                    } else {
-                        HStack{
-                            Text("Selected")
+                    }
+                } else {
+                    Section("Credentials") {
+                        HStack {
+                            Text("Credentials have note yet been configured.")
                             Spacer()
-                            Button("Remove") {
-                                configFileBookmark = .init()
-                            }.foregroundStyle(.red)
-                            Button("Replace") {
-                                let panel = NSOpenPanel()
-                                panel.canChooseFiles = true
-                                panel.canChooseDirectories = false
-                                if panel.runModal() == .OK {
-                                    do {
-                                        let bookmark = try panel.url!.bookmarkData(options:  [.withSecurityScope, .securityScopeAllowOnlyReadAccess])
-                                        configFileBookmark = bookmark
-                                    } catch {
-                                        print("failed to bookmark file")
-                                    }
-                                }
+                            Button("Set...") {
+                                showCredentialsModal = true
                             }
+                        }.sheet(isPresented: $showCredentialsModal) {
+                            credentialsExist = try? CredentialsExist()
+                        } content: {
+                            CredentialsView()
                         }
                     }
                 }
             }.padding(5).formStyle(.grouped)
-            .formStyle(.grouped)
             Divider()
             HStack {
                 Spacer()
@@ -62,6 +52,6 @@ struct SettingsView: View {
                 }
                 .keyboardShortcut(.defaultAction)
             }.padding(20)
-        }.frame(width: 300, height: 200)
+        }.frame(width: 400, height: 300)
     }
 }

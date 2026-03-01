@@ -14,8 +14,6 @@ struct UploadView: View {
     @State private var uploadProgress: Float = 0.0
     @State private var uploadStatus: String = ""
     
-    @AppStorage("configFileBookmark") private var configFileBookmark: Data = .init()
-    
     var body: some View {
         if entries == nil {
             SelectFoldersView(title: "Drag and drop folders to upload") { urls in
@@ -45,32 +43,12 @@ struct UploadView: View {
                 if confirmed {
                     self.showUploadProgressSheet = true
                     
-                    do {
-                        var stale = false
-                        let url = try URL(resolvingBookmarkData: configFileBookmark, options: [.withSecurityScope], relativeTo: nil, bookmarkDataIsStale: &stale)
-                        
-                        if stale {
-                            // TODO: Fix?
-                            print("stale data")
-                            
-                            configFileBookmark = .init()
-                            return
-                        }
-                        
-                        let accessing = url.startAccessingSecurityScopedResource()
-                        if !accessing {
-                            print("failed to read")
-                            return
-                        }
-                        
-                        // TODO: Upload
-                        print(url.absoluteString)
-                        
-                        url.stopAccessingSecurityScopedResource()
-                    } catch {
-                      print(error)
-                      return
+                    // TODO: Upload
+                    guard let credentials = try? GetCredentials() else {
+                        print("no credentials")
+                        return
                     }
+                    print(credentials.region)
                     
                     // TODO
                     DispatchQueue.main.asyncAfter(deadline: .now() + 5) {

@@ -6,8 +6,6 @@ struct SelectIndexView: View {
 
     @State private var isHovering: Bool = false
     
-    @AppStorage("configFileBookmark") private var configFileBookmark: Data = .init()
-    
     @Environment(\.isEnabled) private var isEnabled
     
     let action: (URL) -> Void

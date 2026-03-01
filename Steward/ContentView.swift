@@ -5,7 +5,9 @@ struct ContentView: View {
     @State var selection = "upload"
     @State var inProgress = false
     
-    @AppStorage("configFileBookmark") private var configFileBookmark: Data = .init()
+    // TODO: Use a manager with a reactive property for this from the environnment.
+    // Right now, the first time, the app needs to be restarted
+    @State private var credentialsExist = try? CredentialsExist()
 
     var body: some View {
          TabView(selection: Binding(
@@ -17,8 +19,8 @@ struct ContentView: View {
             }
         )) {
             IndexView().tabItem{ Label("Index", systemImage: "list.bullet").foregroundColor(inProgress ? .secondary : .primary) }.tag("index")
-            UploadView().tabItem{ Label("Upload", systemImage: "list.bullet").foregroundColor(inProgress ? .secondary : .primary) }.tag("upload").disabled(configFileBookmark.isEmpty)
-             DownloadView().tabItem{ Label("Download", systemImage: "list.bullet").foregroundColor(inProgress ? .secondary : .primary) }.tag("download").disabled(configFileBookmark.isEmpty)
+            UploadView().tabItem{ Label("Upload", systemImage: "list.bullet").foregroundColor(inProgress ? .secondary : .primary) }.tag("upload").disabled(credentialsExist != true)
+             DownloadView().tabItem{ Label("Download", systemImage: "list.bullet").foregroundColor(inProgress ? .secondary : .primary) }.tag("download").disabled(credentialsExist != true)
          }
     }
 }
