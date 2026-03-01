@@ -1,25 +1,14 @@
 import SwiftData
 import SwiftUI
 
-struct Entry: Identifiable, Equatable {
-  // The file's path
-  var id: String
-  var disc: String?
-  var track: String?
-  var title: String?
-  var album: String?
-  var artist: String?
-  var composer: String?
-}
-
 struct EntriesTable: View {
-  @Binding public var entries: [Entry]
+  @Binding public var entries: [IndexEntry]
 
-  @State private var selection: Set<Entry.ID> = []
-  @State private var sortOrder = [KeyPathComparator(\Entry.id)]
-  @State private var columnCustomization: TableColumnCustomization<Entry> = .init()
+  @State private var selection: Set<IndexEntry.ID> = []
+  @State private var sortOrder = [KeyPathComparator(\IndexEntry.id)]
+  @State private var columnCustomization: TableColumnCustomization<IndexEntry> = .init()
 
-  func delete(_ id: Entry.ID) {
+  func delete(_ id: IndexEntry.ID) {
     if let index = entries.firstIndex(where: { $0.id == id }) {
       entries.remove(at: index)
     }
@@ -28,7 +17,7 @@ struct EntriesTable: View {
   var body: some View {
     VStack {
       Table(
-        of: Entry.self, selection: $selection, sortOrder: $sortOrder,
+        of: IndexEntry.self, selection: $selection, sortOrder: $sortOrder,
         columnCustomization: $columnCustomization
       ) {
         TableColumn("Disc #") { entry in
@@ -73,13 +62,9 @@ struct EntriesTable: View {
 }
 
 #Preview {
-  @Previewable @State var entries: [Entry] = [
-    Entry(
-      id: "/user/alexg/1", disc: "1", track: "1", title: "Foo", album: "Wet wet wet",
-      artist: "Wet wet wet", composer: nil),
-    Entry(
-      id: "/user/alexg/2", disc: "1", track: "2", title: "Bar", album: "Wet wet wet",
-      artist: "Wet wet wet", composer: nil),
+  @Previewable @State var entries: [IndexEntry] = [
+    IndexEntry(name: "/user/alex/1", modTime: .now, size: 30000000, metadata: ["ALBUM=Wet wet wet"], audioDigest: "md5:b1946ac92492d2347c6235b4d2611184", pictureDigest: "md5:d41d8cd98f00b204e9800998ecf8427e"),
+    IndexEntry(name: "/user/alex/2", modTime: .now, size: 30000000, metadata: ["ALBUM=We can't dance"], audioDigest: "md5:a10edbbb8f28f8e98ee6b649ea2556f4", pictureDigest: "md5:d41d8cd98f00b204e9800998ecf8427e")
   ]
 
   EntriesTable(entries: $entries)

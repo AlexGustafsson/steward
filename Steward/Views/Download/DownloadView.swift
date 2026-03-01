@@ -5,7 +5,7 @@ struct DownloadView: View {
   @State var outputURL: URL? = nil
   @State var filterURL: URL? = nil
   @State var url: URL? = nil
-  @State var entries: [Entry]? = nil
+  @State var entries: [IndexEntry] = []
 
   @State private var showDownloadProgressSheet: Bool = false
   @State private var showCompletedSheet: Bool = false
@@ -21,13 +21,9 @@ struct DownloadView: View {
 
         // TODO: Read and set self.entries
         self.entries = [
-          Entry(
-            id: "/user/alexg/1", disc: "1", track: "1", title: "Foo", album: "Wet wet wet",
-            artist: "Wet wet wet", composer: nil),
-          Entry(
-            id: "/user/alexg/2", disc: "1", track: "2", title: "Bar", album: "Wet wet wet",
-            artist: "Wet wet wet", composer: nil),
-        ]
+            IndexEntry(name: "/user/alex/1", modTime: .now, size: 30000000, metadata: ["ALBUM=Wet wet wet"], audioDigest: "md5:b1946ac92492d2347c6235b4d2611184", pictureDigest: "md5:d41d8cd98f00b204e9800998ecf8427e"),
+            IndexEntry(name: "/user/alex/2", modTime: .now, size: 30000000, metadata: ["ALBUM=We can't dance"], audioDigest: "md5:a10edbbb8f28f8e98ee6b649ea2556f4", pictureDigest: "md5:d41d8cd98f00b204e9800998ecf8427e")
+          ]
       }.sheet(isPresented: $showCompletedSheet) {
         // TODO
       } content: {
@@ -35,7 +31,7 @@ struct DownloadView: View {
       }
     } else {
       ConfirmEntriesView(
-        entries: entries!, confirmLabel: "Download",
+        entries: $entries, confirmLabel: "Download",
         action: { confirmed in
           if confirmed {
             let panel = NSOpenPanel()
@@ -56,7 +52,7 @@ struct DownloadView: View {
             DispatchQueue.main.asyncAfter(deadline: .now() + 5) {
               self.showDownloadProgressSheet = false
               self.showCompletedSheet = true
-              self.entries = nil
+              self.entries = []
               self.url = nil
               withAnimation {
                 self.downloadProgress = 1.0
@@ -73,7 +69,7 @@ struct DownloadView: View {
               }
             }
           } else {
-            self.entries = nil
+            self.entries = []
             self.url = nil
             self.showDownloadProgressSheet = false
           }

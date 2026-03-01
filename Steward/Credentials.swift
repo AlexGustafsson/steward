@@ -9,7 +9,6 @@ struct Credentials: Codable {
 }
 
 enum KeychainError: Error {
-  case duplicateItem
   case itemNotFound
   case unexpectedStatus(OSStatus)
   case invalidData
@@ -30,7 +29,16 @@ func SetCredentials(_ credentials: Credentials) throws {
   case errSecSuccess:
     return
   case errSecDuplicateItem:
-    throw KeychainError.duplicateItem
+      let update: [String: Any] = [
+        kSecValueData as String: data
+      ]
+    let status = SecItemUpdate(query as CFDictionary, update as CFDictionary)
+      switch status {
+      case errSecSuccess:
+        return
+      default:
+        throw KeychainError.unexpectedStatus(status)
+      }
   default:
     throw KeychainError.unexpectedStatus(status)
   }

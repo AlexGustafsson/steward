@@ -2,11 +2,12 @@ import SwiftData
 import SwiftUI
 
 struct UploadView: View {
-  @State var filterURL: URL? = nil
-  @State var urls: [URL]? = nil
-  @State var entries: [Entry]? = nil
-
+    @State private var url: URL? = nil
+  @State private var indexTask: Task<[IndexEntry], Error>? = nil
+  @State private var indexEntries: [IndexEntry] = []
   @State private var showIndexProgressSheet: Bool = false
+
+  @State private var uploadTask: Task<Void, Error>? = nil
   @State private var showUploadProgressSheet: Bool = false
   @State private var showCompletedSheet: Bool = false
   @State private var showFailedSheet: Bool = false
@@ -14,96 +15,83 @@ struct UploadView: View {
   @State private var uploadProgress: Float = 0.0
   @State private var uploadStatus: String = ""
 
-  var body: some View {
-    if entries == nil {
-      SelectFoldersView(title: "Drag and drop folders to upload") { urls in
-        self.urls = urls
-        self.showIndexProgressSheet = true
+    var body: some View {
+        if indexEntries.count == 0 {
+            SelectFoldersView(title: "Drag and drop folder to upload") { urls in
+                // TODO: Block in UI, just here as upload requires a single root
+                if urls.count > 1 {
+                    return
+                }
+                
+                self.showIndexProgressSheet = true
 
-        // TODO: Read and set self.entries
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
-          self.showIndexProgressSheet = false
-          self.entries = [
-            Entry(
-              id: "/user/alexg/1", disc: "1", track: "1", title: "Foo", album: "Wet wet wet",
-              artist: "Wet wet wet", composer: nil),
-            Entry(
-              id: "/user/alexg/2", disc: "1", track: "2", title: "Bar", album: "Wet wet wet",
-              artist: "Wet wet wet", composer: nil),
-          ]
+                do {
+                    self.indexTask = try index(roots: urls)
+                    Task {
+                        do {
+                            self.url = urls.first
+                            self.indexEntries = try await self.indexTask!.value
+                        } catch {
+                            print(error)
+                        }
+                        showIndexProgressSheet = false
+                        self.indexTask = nil
+                    }
+                } catch {
+                    print(error)
+                    return
+                }
+        }.sheet(isPresented: $showIndexProgressSheet) {
+            self.indexTask?.cancel()
+            self.indexTask = nil
+        } content: {
+            StatusView(progress: .unknown, status: "Indexing")
+        }.sheet(isPresented: $showCompletedSheet) {
+            // TODO
+        } content: {
+            StatusCompleteView()
         }
-      }.sheet(isPresented: $showIndexProgressSheet) {
-        // TODO
-        print("Dismissed")
-      } content: {
-        StatusView(progress: .unknown, status: "Uploading")
-      }.sheet(isPresented: $showCompletedSheet) {
-        // TODO
-      } content: {
-        StatusCompleteView()
-      }
     } else {
       ConfirmEntriesView(
-        entries: entries!, confirmLabel: "Upload",
+        entries: $indexEntries, confirmLabel: "Upload",
         action: { confirmed in
           if confirmed {
             self.showUploadProgressSheet = true
-
-            // TODO: Upload
-            guard let credentials = try? GetCredentials() else {
-              print("no credentials")
-              return
-            }
-            print(credentials.region)
-
-            // TODO
-            DispatchQueue.main.asyncAfter(deadline: .now() + 5) {
-              self.showUploadProgressSheet = false
-              self.showCompletedSheet = true
-              self.entries = nil
-              self.urls = nil
-              withAnimation {
-                self.uploadProgress = 1.0
+              
+              do {
+                  // TODO: Progress reporting
+                  self.uploadTask = try upload(root: url!, entries: indexEntries)
+                  Task {
+                      do {
+                          let _ = try await self.uploadTask?.value
+                          self.showCompletedSheet = true
+                          self.indexEntries = []
+                      } catch {
+                          self.showFailedSheet = true
+                          print(error)
+                      }
+                      self.uploadTask = nil
+                      self.showUploadProgressSheet = false
+                      withAnimation {
+                        self.uploadProgress = 1.0
+                      }
+                  }
+              } catch {
+                  print(error)
+                  return
               }
-            }
-            DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
-              withAnimation {
-                self.uploadProgress = 0.5
-              }
-            }
-            DispatchQueue.main.asyncAfter(deadline: .now() + 4) {
-              withAnimation {
-                self.uploadProgress = 0.6
-              }
-            }
           } else {
-            self.entries = nil
-            self.urls = nil
+            self.indexEntries = []
             self.showUploadProgressSheet = false
           }
         }
-      ).toolbar {
-        ToolbarItem(placement: .cancellationAction) {
-          Button {
-            let panel = NSOpenPanel()
-            panel.allowsMultipleSelection = false
-            panel.canChooseDirectories = false
-            panel.canChooseFiles = true
-            panel.allowedContentTypes = [.json, .gzip]
-            if panel.runModal() == .OK {
-              filterURL = panel.url
-            }
-          } label: {
-            Image(systemName: "pencil.and.list.clipboard")
-          }
-        }
-      }.sheet(isPresented: $showUploadProgressSheet) {
-        // TODO
-        print("Sheet dismissed!")
+      ).sheet(isPresented: $showUploadProgressSheet) {
+          self.uploadTask?.cancel()
+          self.uploadTask = nil
       } content: {
         StatusView(progress: .known(self.uploadProgress), status: "Uploading")
       }.sheet(isPresented: $showFailedSheet) {
-        // TODO
+          self.showFailedSheet = false
       } content: {
         Text("Failed!")
       }

@@ -4,7 +4,7 @@ import SwiftUI
 struct IndexView: View {
   @State private var showIndexProgressSheet: Bool = false
 
-  private var indexer: Indexer = Indexer()
+  @State private var indexTask: Task<Void, Error>? = nil
 
   var body: some View {
     SelectFoldersView(title: "Drag and drop folders to index") { urls in
@@ -17,13 +17,20 @@ struct IndexView: View {
       savePanel.begin { (result) in
         if result == .OK {
           showIndexProgressSheet = true
-          self.indexer.index(roots: urls, outputPath: savePanel.url!) { _ in
-            showIndexProgressSheet = false
-          }
+          indexTask = try? index(roots: urls, outputPath: savePanel.url!)
+            Task {
+                do {
+                    try await indexTask?.value
+                } catch {
+                    print(error)
+                }
+                showIndexProgressSheet = false
+            }
         }
       }
     }.sheet(isPresented: $showIndexProgressSheet) {
-      self.indexer.cancel()
+        self.indexTask?.cancel()
+        self.indexTask = nil
     } content: {
       StatusView(progress: .unknown, status: "Indexing")
     }
