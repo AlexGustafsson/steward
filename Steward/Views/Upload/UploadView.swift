@@ -17,19 +17,15 @@ struct UploadView: View {
 
     var body: some View {
         if indexEntries.count == 0 {
-            SelectFoldersView(title: "Drag and drop folder to upload") { urls in
-                // TODO: Block in UI, just here as upload requires a single root
-                if urls.count > 1 {
-                    return
-                }
-                
+            SelectFoldersView(title: "Drag and drop folder to upload", multi: false) { urls in
+                let url = urls.first!
                 self.showIndexProgressSheet = true
 
                 do {
-                    self.indexTask = try index(roots: urls)
+                    self.indexTask = try index(roots: [url])
                     Task {
                         do {
-                            self.url = urls.first
+                            self.url = url
                             self.indexEntries = try await self.indexTask!.value
                         } catch {
                             print(error)
