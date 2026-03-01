@@ -24,14 +24,6 @@ func (r reader) Read(p []byte) (n int, err error) {
 	return n, err
 }
 
-type ReadStats struct {
-	Bytes atomic.Uint64
-}
-
-func (s *ReadStats) NewReader(r io.Reader) io.Reader {
-	return reader{bytes: &s.Bytes, r: io.NopCloser(r)}
-}
-
-func (s *ReadStats) NewReadCloser(r io.ReadCloser) io.Reader {
-	return reader{bytes: &s.Bytes, r: r}
+func newStatsReader(r io.Reader, bytes *atomic.Uint64) io.Reader {
+	return reader{bytes: bytes, r: io.NopCloser(r)}
 }

@@ -65,6 +65,10 @@ func main() {
 				},
 				Flags: []cli.Flag{
 					&cli.StringFlag{
+						Name:     "from",
+						Required: true,
+					},
+					&cli.StringFlag{
 						Name:     "to",
 						Required: true,
 					},

@@ -4,16 +4,12 @@ import (
 	"bufio"
 	"compress/gzip"
 	"context"
-	"crypto/md5"
-	"encoding/hex"
 	"encoding/json"
 	"io"
 	"log/slog"
 	"os"
 	"path/filepath"
-	"strings"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/AlexGustafsson/steward/internal/indexing"
@@ -56,102 +52,36 @@ func UploadAction(ctx context.Context, cmd *cli.Command) error {
 		}
 	}
 
-	entries := make(chan indexing.Entry, 32)
-
-	var wg sync.WaitGroup
-
-	var stats storage.ReadStats
-
-	var failures atomic.Uint64
-	var successes atomic.Uint64
-
-	var totalBytes uint64
-	var processedBytes atomic.Uint64
-
-	ticker := time.NewTicker(1 * time.Second)
-	go func() {
-		for range ticker.C {
-			progress := float64(processedBytes.Load()) / float64(totalBytes)
-			slog.Debug(
-				"Upload in progress",
-				slog.Float64("progress", progress),
-				slog.Uint64("totalBytes", totalBytes),
-				slog.Uint64("processedBytes", processedBytes.Load()),
-				slog.Uint64("uploadedBytes", stats.Bytes.Load()),
-			)
-		}
-	}()
-
-	// List all remote blobs
-	blobs, err := remote.GetBlobs(ctx)
+	uploader, err := storage.NewUploader(ctx, remote, cmd.String("from"))
 	if err != nil {
 		return err
 	}
 
+	entries := make(chan indexing.Entry, 32)
+
+	var wg sync.WaitGroup
+
+	ticker := time.NewTicker(1 * time.Second)
+	go func() {
+		for range ticker.C {
+			slog.Debug(
+				"Upload in progress",
+				slog.Uint64("failures", uploader.Failures.Load()),
+				slog.Uint64("successes", uploader.Successes.Load()),
+				slog.Uint64("uploadedBytes", uploader.UploadedBytes.Load()),
+				slog.Uint64("processedBytes", uploader.ProcessedBytes.Load()),
+			)
+		}
+	}()
+
 	for range 10 {
 		wg.Go(func() {
 			for entry := range entries {
-				slog.Debug("Processing entry", slog.String("name", entry.Name))
+				logger := slog.With(slog.String("indexName", entry.Name), slog.String("audioDigest", entry.AudioDigest))
 
-				audioDigestAlgorithm, audioDigest, _ := strings.Cut(entry.AudioDigest, ":")
-				blobKey := filepath.Join("blobs", audioDigestAlgorithm, audioDigest)
-
-				blobEntry, blobEntryExists := blobs[blobKey]
-				if blobEntryExists {
-					if force {
-						slog.Debug("Local file name already exists but force enabled - uploading")
-					} else {
-						slog.Debug("Local file name already exists - skipping")
-						processedBytes.Add(uint64(entry.Size))
-						continue
-					}
-				} else {
-					slog.Debug("Local file missing in remote - uploading")
-				}
-
-				file, err := os.Open(entry.Name)
-				if err != nil {
-					slog.Warn("Failed to upload entry", slog.Any("error", err))
-					failures.Add(1)
-					continue
-				}
-
-				md5sum := md5.New()
-
-				fileSize, err := io.Copy(md5sum, file)
-				if err != nil {
-					slog.Warn("Failed to upload entry", slog.Any("error", err))
-					failures.Add(1)
-					file.Close()
-					continue
-				}
-
-				_, err = file.Seek(0, 0)
-				if err != nil {
-					slog.Warn("Failed to upload entry", slog.Any("error", err))
-					failures.Add(1)
-					file.Close()
-					continue
-				}
-
-				fileDigest := "md5:" + hex.EncodeToString(md5sum.Sum(nil))
-
-				if blobEntryExists && blobEntry.Digest == fileDigest {
-					slog.Debug("Local file matches remote - skipping")
-					file.Close()
-					processedBytes.Add(uint64(entry.Size))
-					continue
-				}
-
-				err = remote.PutBlob(ctx, blobKey, stats.NewReader(file), fileDigest, fileSize)
-				file.Close()
-				processedBytes.Add(uint64(entry.Size))
-				if err == nil {
-					successes.Add(1)
-				} else {
-					slog.Warn("Failed to upload entry", slog.Any("error", err))
-					failures.Add(1)
-					// Fallthrough
+				logger.Debug("Processing entry")
+				if err := uploader.Upload(ctx, entry, force); err != nil {
+					logger.Error("Failed to upload entry", slog.Any("error", err))
 				}
 			}
 		})
@@ -162,11 +92,9 @@ func UploadAction(ctx context.Context, cmd *cli.Command) error {
 		var entry indexing.Entry
 		if err := json.Unmarshal(scanner.Bytes(), &entry); err != nil {
 			slog.Error("Failed to parse index", slog.Any("error", err))
-			failures.Add(1)
 			break
 		}
 
-		totalBytes += uint64(entry.Size)
 		entries <- entry
 	}
 	close(entries)
@@ -174,32 +102,22 @@ func UploadAction(ctx context.Context, cmd *cli.Command) error {
 	wg.Wait()
 	ticker.Stop()
 
-	progress := float64(processedBytes.Load()) / float64(totalBytes)
-	if failures.Load() > 0 {
+	if uploader.Failures.Load() > 0 {
 		slog.Error(
 			"Upload failed",
-			slog.Uint64("failures", failures.Load()),
-			slog.Uint64("successes", successes.Load()),
-
-			slog.Float64("progress", progress),
-			slog.Uint64("totalBytes", totalBytes),
-			slog.Uint64("processedBytes", processedBytes.Load()),
-			slog.Uint64("uploadedBytes", stats.Bytes.Load()),
+			slog.Uint64("failures", uploader.Failures.Load()),
+			slog.Uint64("successes", uploader.Successes.Load()),
+			slog.Uint64("uploadedBytes", uploader.UploadedBytes.Load()),
+			slog.Uint64("processedBytes", uploader.ProcessedBytes.Load()),
 		)
-		return ErrExit // TODO Actual error
+		return ErrExit
 	} else {
 		slog.Info(
 			"Upload succeeded",
-			slog.Uint64("failures", failures.Load()),
-			slog.Uint64("successes", successes.Load()),
-
-			slog.Float64("progress", progress),
-			slog.Uint64("totalBytes", totalBytes),
-			slog.Uint64("processedBytes", processedBytes.Load()),
-			slog.Float64("progress", progress),
-			slog.Uint64("totalBytes", totalBytes),
-			slog.Uint64("processedBytes", processedBytes.Load()),
-			slog.Uint64("uploadedBytes", stats.Bytes.Load()),
+			slog.Uint64("failures", uploader.Failures.Load()),
+			slog.Uint64("successes", uploader.Successes.Load()),
+			slog.Uint64("uploadedBytes", uploader.UploadedBytes.Load()),
+			slog.Uint64("processedBytes", uploader.ProcessedBytes.Load()),
 		)
 	}
 
