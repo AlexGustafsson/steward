@@ -14,15 +14,21 @@ struct UploadView: View {
 
   @State private var uploadProgress: Float = 0.0
   @State private var uploadStatus: String = ""
+    
+    @State private var logs: [LogEntry] = []
 
     var body: some View {
         if indexEntries.count == 0 {
             SelectFoldersView(title: "Drag and drop folder to upload", multi: false) { urls in
                 let url = urls.first!
+                
                 self.showIndexProgressSheet = true
 
                 do {
-                    self.indexTask = try index(roots: [url])
+                    self.logs = []
+                    self.indexTask = try index(roots: [url]) { logEntry in
+                        logs.append(logEntry)
+                    }
                     Task {
                         do {
                             self.url = url
@@ -32,6 +38,7 @@ struct UploadView: View {
                         }
                         showIndexProgressSheet = false
                         self.indexTask = nil
+                        self.logs = []
                     }
                 } catch {
                     print(error)
@@ -41,7 +48,7 @@ struct UploadView: View {
             self.indexTask?.cancel()
             self.indexTask = nil
         } content: {
-            StatusView(progress: .unknown, status: "Indexing")
+            StatusView(progress: .unknown, status: "Indexing", logs: [])
         }.sheet(isPresented: $showCompletedSheet) {
             // TODO
         } content: {
@@ -52,11 +59,14 @@ struct UploadView: View {
         entries: $indexEntries, confirmLabel: "Upload",
         action: { confirmed in
           if confirmed {
+              self.uploadProgress = 0.0
             self.showUploadProgressSheet = true
               
               do {
                   // TODO: Progress reporting
-                  self.uploadTask = try upload(root: url!, entries: indexEntries)
+                  self.uploadTask = try upload(root: url!, entries: indexEntries) { logEntry in
+                      logs.append(logEntry)
+                  }
                   Task {
                       do {
                           let _ = try await self.uploadTask?.value
@@ -85,11 +95,11 @@ struct UploadView: View {
           self.uploadTask?.cancel()
           self.uploadTask = nil
       } content: {
-        StatusView(progress: .known(self.uploadProgress), status: "Uploading")
+          StatusView(progress: .known(self.uploadProgress), status: "Uploading", logs: logs)
       }.sheet(isPresented: $showFailedSheet) {
           self.showFailedSheet = false
       } content: {
-        Text("Failed!")
+          LogTable(logs: logs).frame(width: 500, height: 400)
       }
     }
   }

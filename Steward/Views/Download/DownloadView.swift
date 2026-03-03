@@ -16,11 +16,14 @@ struct DownloadView: View {
 
   @State private var downloadProgress: Float = 0.0
   @State private var downloadStatus: String = ""
+    
+  @State private var logs: [LogEntry] = []
 
   var body: some View {
       if entries.count == 0 {
       SelectIndexView(title: "Drag and drop index to download") { url in
           do {
+              self.logs = []
               self.indexTask = try readIndex(from: url)
               Task {
                   do {
@@ -29,6 +32,7 @@ struct DownloadView: View {
                       print(error)
                   }
                   self.indexTask = nil
+                  self.logs = []
               }
           } catch {
               print(error)
@@ -47,29 +51,33 @@ struct DownloadView: View {
             panel.allowsMultipleSelection = false
             panel.canChooseDirectories = true
             panel.canChooseFiles = false
+              panel.canCreateDirectories = true
             if panel.runModal() != .OK {
               return
             }
-
+              
+            self.downloadProgress = 0.0
             self.showDownloadProgressSheet = true
 
               do {
                   // TODO: Progress reporting
-                  self.downloadTask = try download(root: panel.url!, entries: self.entries)
+                  self.downloadTask = try download(root: panel.url!, entries: self.entries) { logEntry in
+                      logs.append(logEntry)
+                  }
                   Task {
                       do {
                           let _ = try await self.downloadTask?.value
                           self.showCompletedSheet = true
                           self.entries = []
+                          withAnimation {
+                            self.downloadProgress = 1.0
+                          }
                       } catch {
                           self.showFailedSheet = true
                           print(error)
                       }
                       self.downloadTask = nil
                       self.showDownloadProgressSheet = false
-                      withAnimation {
-                        self.downloadProgress = 1.0
-                      }
                   }
               } catch {
                   print(error)
@@ -90,7 +98,9 @@ struct DownloadView: View {
             panel.allowedContentTypes = [.json, .gzip]
             if panel.runModal() == .OK {
                 do {
-                    self.filterTask = try diff(local: panel.url!, remote: entries)
+                    self.filterTask = try diff(local: panel.url!, remote: entries) {logEntry in
+                        logs.append(logEntry)
+                    }
                     Task {
                         do {
                             self.entries = try await self.filterTask!.value
@@ -111,11 +121,11 @@ struct DownloadView: View {
           self.downloadTask?.cancel()
           self.downloadTask = nil
       } content: {
-        StatusView(progress: .known(self.downloadProgress), status: "Downloading")
+          StatusView(progress: .known(self.downloadProgress), status: "Downloading", logs: logs)
       }.sheet(isPresented: $showFailedSheet) {
           self.showFailedSheet = false
       } content: {
-        Text("Failed!")
+          LogTable(logs: logs).frame(width: 500, height: 400)
       }
     }
   }

@@ -79,7 +79,7 @@ enum IndexError: Error {
     case unexpectedError
 }
 
-func index(roots: [URL], outputPath: URL) throws -> Task<Void, Error> {
+func index(roots: [URL], outputPath: URL, _ logCallback: @escaping @MainActor (LogEntry) -> ()) throws -> Task<Void, Error> {
     FileManager.default.createFile(atPath: outputPath.path, contents: nil)
     
     let fileHandle = try FileHandle(forWritingTo: outputPath)
@@ -89,15 +89,22 @@ func index(roots: [URL], outputPath: URL) throws -> Task<Void, Error> {
 
     let process = Process()
     process.executableURL = toolURL
-    process.arguments = ["index"] + roots.map({ x in x.path(percentEncoded: false) })
+    process.arguments = ["--verbose", "index"] + roots.map({ x in x.path(percentEncoded: false) })
 
     process.standardOutput = fileHandle
+    
+    let stderr = Pipe()
+    process.standardError = stderr
     
     try process.run()
     
     return Task {
+        let logsTask = readLogs(fileHandle: stderr.fileHandleForReading, logCallback)
+        
         process.waitUntilExit()
         try? fileHandle.close()
+        
+        let _ = try? await logsTask.value
         
         if process.terminationStatus != 0 {
             throw IndexError.unexpectedError
@@ -105,21 +112,25 @@ func index(roots: [URL], outputPath: URL) throws -> Task<Void, Error> {
     }
 }
 
-func index(roots: [URL]) throws -> Task<[IndexEntry], Error> {
+func index(roots: [URL], _ logCallback: @escaping @MainActor (LogEntry) -> ()) throws -> Task<[IndexEntry], Error> {
     let toolURL = Bundle.main.bundleURL
       .appendingPathComponent("Contents/MacOS/StewardTool")
 
     let process = Process()
     process.executableURL = toolURL
-    process.arguments = ["index"] + roots.map({ x in x.path(percentEncoded: false) })
+    process.arguments = ["--verbose", "index"] + roots.map({ x in x.path(percentEncoded: false) })
 
     let stdout = Pipe()
     process.standardOutput = stdout
     
+    let stderr = Pipe()
+    process.standardError = stderr
     
     try process.run()
     
     return Task {
+        let logsTask = readLogs(fileHandle: stderr.fileHandleForReading, logCallback)
+
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .iso8601
         
@@ -134,6 +145,8 @@ func index(roots: [URL]) throws -> Task<[IndexEntry], Error> {
 
         process.waitUntilExit()
         
+        let _ = try? await logsTask.value
+        
         if process.terminationStatus != 0 {
             throw IndexError.unexpectedError
         }
@@ -146,7 +159,7 @@ enum UploadError : Error {
     case unexpectedError
 }
 
-func upload(root: URL, entries: [IndexEntry]) throws -> Task<Void, Error> {
+func upload(root: URL, entries: [IndexEntry], _ logCallback: @escaping @MainActor (LogEntry) -> ()) throws -> Task<Void, Error> {
     guard let credentials = try GetCredentials() else {
         throw UploadError.unexpectedError
     }
@@ -156,7 +169,7 @@ func upload(root: URL, entries: [IndexEntry]) throws -> Task<Void, Error> {
 
     let process = Process()
     process.executableURL = toolURL
-    process.arguments = ["upload", "--from", root.path(percentEncoded: false), "--to", credentials.bucket]
+    process.arguments = ["--verbose", "upload", "--from", root.path(percentEncoded: false), "--to", credentials.bucket]
     process.environment = [
         "B2_REGION": credentials.region,
         "B2_KEY": credentials.key,
@@ -166,12 +179,14 @@ func upload(root: URL, entries: [IndexEntry]) throws -> Task<Void, Error> {
     let stdin = Pipe()
     process.standardInput = stdin
 
-    let stdout = Pipe()
-    process.standardOutput = stdout
+    let stderr = Pipe()
+    process.standardError = stderr
     
     try process.run()
     
     return Task {
+        let logsTask = readLogs(fileHandle: stderr.fileHandleForReading, logCallback)
+        
         let encoder = JSONEncoder()
         encoder.dateEncodingStrategy = .iso8601
         
@@ -181,10 +196,10 @@ func upload(root: URL, entries: [IndexEntry]) throws -> Task<Void, Error> {
             try stdin.fileHandleForWriting.write(contentsOf: "\n".data(using: .utf8)!)
         }
         try? stdin.fileHandleForWriting.close()
-        
-        // TODO: Output logs
 
         process.waitUntilExit()
+        
+        let _ = try? await logsTask.value
         
         if process.terminationStatus != 0 {
             throw UploadError.unexpectedError
@@ -214,13 +229,13 @@ enum DiffError: Error {
 }
 
 
-func diff(local: URL, remote: [IndexEntry]) throws -> Task<[IndexEntry], Error> {
+func diff(local: URL, remote: [IndexEntry], _ logCallback: @escaping @MainActor (LogEntry) -> ()) throws -> Task<[IndexEntry], Error> {
     let toolURL = Bundle.main.bundleURL
       .appendingPathComponent("Contents/MacOS/StewardTool")
 
     let process = Process()
     process.executableURL = toolURL
-    process.arguments = ["diff", "--output", "remote-only", local.path(percentEncoded: false), "/dev/stdin"]
+    process.arguments = ["--verbose", "diff", "--output", "remote-only", local.path(percentEncoded: false), "/dev/stdin"]
     
     let stdin = Pipe()
     process.standardInput = stdin
@@ -228,9 +243,14 @@ func diff(local: URL, remote: [IndexEntry]) throws -> Task<[IndexEntry], Error> 
     let stdout = Pipe()
     process.standardOutput = stdout
     
+    let stderr = Pipe()
+    process.standardError = stderr
+    
     try process.run()
     
     return Task {
+        let _ = readLogs(fileHandle: stderr.fileHandleForReading, logCallback)
+        
         let encoder = JSONEncoder()
         encoder.dateEncodingStrategy = .iso8601
         
@@ -250,8 +270,6 @@ func diff(local: URL, remote: [IndexEntry]) throws -> Task<[IndexEntry], Error> 
             let entry = try decoder.decode(IndexEntry.self, from: line.data(using: .utf8)!)
             entries.append(entry)
         }
-        
-        // TODO: Output logs
 
         process.waitUntilExit()
         
@@ -268,7 +286,7 @@ enum DownloadError : Error {
     case unexpectedError
 }
 
-func download(root: URL, entries: [IndexEntry]) throws -> Task<Void, Error> {
+func download(root: URL, entries: [IndexEntry], _ logCallback: @escaping @MainActor (LogEntry) -> ()) throws -> Task<Void, Error> {
     guard let credentials = try GetCredentials() else {
         throw DownloadError.unexpectedError
     }
@@ -278,7 +296,7 @@ func download(root: URL, entries: [IndexEntry]) throws -> Task<Void, Error> {
 
     let process = Process()
     process.executableURL = toolURL
-    process.arguments = ["download", "--from", credentials.bucket, "--to", root.path(percentEncoded: false)]
+    process.arguments = ["--verbose", "download", "--from", credentials.bucket, "--to", root.path(percentEncoded: false)]
     process.environment = [
         "B2_REGION": credentials.region,
         "B2_KEY": credentials.key,
@@ -291,9 +309,14 @@ func download(root: URL, entries: [IndexEntry]) throws -> Task<Void, Error> {
     let stdout = Pipe()
     process.standardOutput = stdout
     
+    let stderr = Pipe()
+    process.standardError = stderr
+    
     try process.run()
     
     return Task {
+        let _ = readLogs(fileHandle: stderr.fileHandleForReading, logCallback)
+        
         let encoder = JSONEncoder()
         encoder.dateEncodingStrategy = .iso8601
         
@@ -310,6 +333,149 @@ func download(root: URL, entries: [IndexEntry]) throws -> Task<Void, Error> {
         
         if process.terminationStatus != 0 {
             throw UploadError.unexpectedError
+        }
+    }
+}
+
+enum JSONValue: Codable, Equatable {
+    case string(String)
+    case number(Double)
+    case int(Int)
+    case bool(Bool)
+    case object([String: JSONValue])
+    case array([JSONValue])
+    case null
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.singleValueContainer()
+
+        if container.decodeNil() {
+            self = .null
+        } else if let bool = try? container.decode(Bool.self) {
+            self = .bool(bool)
+        } else if let int = try? container.decode(Int.self) {
+            self = .int(int)
+        } else if let double = try? container.decode(Double.self) {
+            self = .number(double)
+        } else if let string = try? container.decode(String.self) {
+            self = .string(string)
+        } else if let array = try? container.decode([JSONValue].self) {
+            self = .array(array)
+        } else if let object = try? container.decode([String: JSONValue].self) {
+            self = .object(object)
+        } else {
+            throw DecodingError.dataCorruptedError(
+                in: container,
+                debugDescription: "Invalid JSON value"
+            )
+        }
+    }
+    
+    var string: String {
+        get {
+            switch self {
+            case .string(let v):
+                return v
+            case .number(let v):
+                return v.formatted()
+            case .int(let v):
+                return v.formatted()
+            case .bool(let v):
+                return v ? "true" : "false"
+            case .object:
+                return "[Object]"
+            case .array:
+                return "[Array]"
+            case .null:
+                return "null"
+            }
+        }
+    }
+}
+
+struct LogEntry: Codable, Identifiable {
+    var id: Int
+    var time: Date
+    var level: String
+    var msg: String
+    var error: String?
+    var additionalProperties: [String: JSONValue] = [:]
+    
+    enum CodningKeys: String, CodingKey {
+        case time
+        case level
+        case msg
+        case error
+    }
+    
+    struct DynamicCodingKey: CodingKey {
+        var stringValue: String
+        init?(stringValue: String) {
+            self.stringValue = stringValue
+        }
+
+        var intValue: Int? { nil }
+        init?(intValue: Int) { nil }
+    }
+    
+    init(id: Int, time: Date, level: String, msg: String) {
+        self.id = id
+        self.time = time
+        self.level = level
+        self.msg = msg
+    }
+    
+    init(id: Int, time: Date, level: String, msg: String, error: String) {
+        self.id = id
+        self.time = time
+        self.level = level
+        self.msg = msg
+        self.error = error
+    }
+    
+    init(id: Int, time: Date, level: String, msg: String, error: String, additionalProperties: [String: JSONValue]) {
+        self.id = id
+        self.time = time
+        self.level = level
+        self.msg = msg
+        self.error = error
+        self.additionalProperties = additionalProperties
+    }
+    
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.id = 0
+        self.time = try container.decode(Date.self, forKey: .time)
+        self.level = try container.decode(String.self, forKey: .level)
+        self.msg = try container.decode(String.self, forKey: .msg)
+        self.error = try container.decodeIfPresent(String.self, forKey: .error)
+
+        let dynamic = try decoder.container(keyedBy: DynamicCodingKey.self)
+        for key in dynamic.allKeys {
+            if CodingKeys(stringValue: key.stringValue) == nil {
+                additionalProperties[key.stringValue] =
+                    try dynamic.decode(JSONValue.self, forKey: key)
+            }
+        }
+    }
+}
+
+func readLogs(fileHandle: FileHandle, _ callback: @escaping @MainActor (LogEntry) -> ()) -> Task<Void, Error> {
+   return Task {
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        
+       var lineIndex = 0
+        for try await line in fileHandle.bytes.lines {
+            do {
+                var entry = try decoder.decode(LogEntry.self, from: line.data(using: .utf8)!)
+                entry.id = lineIndex
+                await callback(entry)
+            } catch {
+                print(error)
+                return
+            }
+            lineIndex += 1
         }
     }
 }
