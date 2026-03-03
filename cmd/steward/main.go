@@ -12,9 +12,20 @@ import (
 var ErrExit = errors.New("exit code")
 
 func main() {
-	slog.SetLogLoggerLevel(slog.LevelDebug)
-
+	slog.SetDefault(slog.New(slog.NewJSONHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelWarn})))
 	cmd := &cli.Command{
+		Flags: []cli.Flag{
+			&cli.BoolFlag{
+				Name: "verbose",
+			},
+		},
+		Before: func(ctx context.Context, c *cli.Command) (context.Context, error) {
+			if c.Bool("verbose") {
+				slog.SetDefault(slog.New(slog.NewJSONHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelDebug})))
+			}
+
+			return ctx, nil
+		},
 		Commands: []*cli.Command{
 			{
 				Name:      "index",
