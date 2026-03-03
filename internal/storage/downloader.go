@@ -66,6 +66,7 @@ func (d *Downloader) Download(ctx context.Context, entry indexing.Entry, force b
 
 	blobEntry, blobEntryExists := d.blobs[blobKey]
 	if !blobEntryExists {
+		d.Failures.Add(1)
 		return fmt.Errorf("indexed file does not exist in remote storage")
 	}
 
