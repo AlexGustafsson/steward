@@ -170,14 +170,12 @@ func upload(root: URL, entries: [IndexEntry]) throws -> Task<Void, Error> {
     process.standardOutput = stdout
     
     try process.run()
-    print("After")
     
     return Task {
         let encoder = JSONEncoder()
         encoder.dateEncodingStrategy = .iso8601
         
         for entry in entries {
-            print("writing")
             let line = try encoder.encode(entry)
             try stdin.fileHandleForWriting.write(contentsOf: line)
             try stdin.fileHandleForWriting.write(contentsOf: "\n".data(using: .utf8)!)
@@ -186,7 +184,128 @@ func upload(root: URL, entries: [IndexEntry]) throws -> Task<Void, Error> {
         
         // TODO: Output logs
 
-        print("waiting")
+        process.waitUntilExit()
+        
+        if process.terminationStatus != 0 {
+            throw UploadError.unexpectedError
+        }
+    }
+}
+
+func readIndex(from url: URL) throws -> Task<[IndexEntry], Error> {
+    let handle = try FileHandle(forReadingFrom: url)
+    
+    return Task {
+        var entries = [IndexEntry]()
+        
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        for try await line in handle.bytes.lines {
+            let entry = try decoder.decode(IndexEntry.self, from: line.data(using: .utf8)!)
+            entries.append(entry)
+        }
+        
+        return entries
+    }
+}
+
+enum DiffError: Error {
+    case unexpectedError
+}
+
+
+func diff(local: URL, remote: [IndexEntry]) throws -> Task<[IndexEntry], Error> {
+    let toolURL = Bundle.main.bundleURL
+      .appendingPathComponent("Contents/MacOS/StewardTool")
+
+    let process = Process()
+    process.executableURL = toolURL
+    process.arguments = ["diff", "--output", "remote-only", local.path(percentEncoded: false), "/dev/stdin"]
+    
+    let stdin = Pipe()
+    process.standardInput = stdin
+
+    let stdout = Pipe()
+    process.standardOutput = stdout
+    
+    try process.run()
+    
+    return Task {
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        
+        for entry in remote {
+            let line = try encoder.encode(entry)
+            try stdin.fileHandleForWriting.write(contentsOf: line)
+            try stdin.fileHandleForWriting.write(contentsOf: "\n".data(using: .utf8)!)
+        }
+        try? stdin.fileHandleForWriting.close()
+        
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        
+        var entries = [IndexEntry]()
+        
+        for try await line in stdout.fileHandleForReading.bytes.lines {
+            let entry = try decoder.decode(IndexEntry.self, from: line.data(using: .utf8)!)
+            entries.append(entry)
+        }
+        
+        // TODO: Output logs
+
+        process.waitUntilExit()
+        
+        if process.terminationStatus != 0 {
+            throw DiffError.unexpectedError
+        }
+        
+        return entries
+    }
+}
+
+
+enum DownloadError : Error {
+    case unexpectedError
+}
+
+func download(root: URL, entries: [IndexEntry]) throws -> Task<Void, Error> {
+    guard let credentials = try GetCredentials() else {
+        throw DownloadError.unexpectedError
+    }
+    
+    let toolURL = Bundle.main.bundleURL
+      .appendingPathComponent("Contents/MacOS/StewardTool")
+
+    let process = Process()
+    process.executableURL = toolURL
+    process.arguments = ["download", "--from", credentials.bucket, "--to", root.path(percentEncoded: false)]
+    process.environment = [
+        "B2_REGION": credentials.region,
+        "B2_KEY": credentials.key,
+        "B2_SECRET": credentials.secret,
+    ]
+    
+    let stdin = Pipe()
+    process.standardInput = stdin
+
+    let stdout = Pipe()
+    process.standardOutput = stdout
+    
+    try process.run()
+    
+    return Task {
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        
+        for entry in entries {
+            let line = try encoder.encode(entry)
+            try stdin.fileHandleForWriting.write(contentsOf: line)
+            try stdin.fileHandleForWriting.write(contentsOf: "\n".data(using: .utf8)!)
+        }
+        try? stdin.fileHandleForWriting.close()
+        
+        // TODO: Output logs
+
         process.waitUntilExit()
         
         if process.terminationStatus != 0 {

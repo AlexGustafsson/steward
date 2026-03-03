@@ -2,10 +2,13 @@ import SwiftData
 import SwiftUI
 
 struct DownloadView: View {
+    @State var indexTask: Task<[IndexEntry], Error>? = nil
+    @State var entries: [IndexEntry] = []
+    
+    @State var filterTask: Task<[IndexEntry], Error>? = nil
+    @State var downloadTask: Task<Void, Error>? = nil
+    
   @State var outputURL: URL? = nil
-  @State var filterURL: URL? = nil
-  @State var url: URL? = nil
-  @State var entries: [IndexEntry] = []
 
   @State private var showDownloadProgressSheet: Bool = false
   @State private var showCompletedSheet: Bool = false
@@ -15,15 +18,21 @@ struct DownloadView: View {
   @State private var downloadStatus: String = ""
 
   var body: some View {
-    if entries == nil {
+      if entries.count == 0 {
       SelectIndexView(title: "Drag and drop index to download") { url in
-        self.url = url
-
-        // TODO: Read and set self.entries
-        self.entries = [
-            IndexEntry(name: "/user/alex/1", modTime: .now, size: 30000000, metadata: ["ALBUM=Wet wet wet"], audioDigest: "md5:b1946ac92492d2347c6235b4d2611184", pictureDigest: "md5:d41d8cd98f00b204e9800998ecf8427e"),
-            IndexEntry(name: "/user/alex/2", modTime: .now, size: 30000000, metadata: ["ALBUM=We can't dance"], audioDigest: "md5:a10edbbb8f28f8e98ee6b649ea2556f4", pictureDigest: "md5:d41d8cd98f00b204e9800998ecf8427e")
-          ]
+          do {
+              self.indexTask = try readIndex(from: url)
+              Task {
+                  do {
+                      self.entries = try await self.indexTask!.value
+                  } catch {
+                      print(error)
+                  }
+                  self.indexTask = nil
+              }
+          } catch {
+              print(error)
+          }
       }.sheet(isPresented: $showCompletedSheet) {
         // TODO
       } content: {
@@ -42,35 +51,32 @@ struct DownloadView: View {
               return
             }
 
-            self.outputURL = panel.url
-
             self.showDownloadProgressSheet = true
 
-            // TODO: Download
-
-            // TODO
-            DispatchQueue.main.asyncAfter(deadline: .now() + 5) {
-              self.showDownloadProgressSheet = false
-              self.showCompletedSheet = true
-              self.entries = []
-              self.url = nil
-              withAnimation {
-                self.downloadProgress = 1.0
+              do {
+                  // TODO: Progress reporting
+                  self.downloadTask = try download(root: panel.url!, entries: self.entries)
+                  Task {
+                      do {
+                          let _ = try await self.downloadTask?.value
+                          self.showCompletedSheet = true
+                          self.entries = []
+                      } catch {
+                          self.showFailedSheet = true
+                          print(error)
+                      }
+                      self.downloadTask = nil
+                      self.showDownloadProgressSheet = false
+                      withAnimation {
+                        self.downloadProgress = 1.0
+                      }
+                  }
+              } catch {
+                  print(error)
+                  return
               }
-            }
-            DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
-              withAnimation {
-                self.downloadProgress = 0.5
-              }
-            }
-            DispatchQueue.main.asyncAfter(deadline: .now() + 4) {
-              withAnimation {
-                self.downloadProgress = 0.6
-              }
-            }
           } else {
             self.entries = []
-            self.url = nil
             self.showDownloadProgressSheet = false
           }
         }
@@ -83,19 +89,31 @@ struct DownloadView: View {
             panel.canChooseFiles = true
             panel.allowedContentTypes = [.json, .gzip]
             if panel.runModal() == .OK {
-              filterURL = panel.url
+                do {
+                    self.filterTask = try diff(local: panel.url!, remote: entries)
+                    Task {
+                        do {
+                            self.entries = try await self.filterTask!.value
+                        } catch {
+                            print(error)
+                        }
+                        self.filterTask = nil
+                    }
+                } catch {
+                    print(error)
+                }
             }
           } label: {
             Image(systemName: "pencil.and.list.clipboard")
           }
         }
       }.sheet(isPresented: $showDownloadProgressSheet) {
-        // TODO
-        print("Sheet dismissed!")
+          self.downloadTask?.cancel()
+          self.downloadTask = nil
       } content: {
         StatusView(progress: .known(self.downloadProgress), status: "Downloading")
       }.sheet(isPresented: $showFailedSheet) {
-        // TODO
+          self.showFailedSheet = false
       } content: {
         Text("Failed!")
       }
