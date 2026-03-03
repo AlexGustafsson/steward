@@ -13,7 +13,6 @@ import (
 	"strings"
 
 	"github.com/AlexGustafsson/steward/internal/indexing"
-	"github.com/AlexGustafsson/steward/internal/report"
 	"github.com/urfave/cli/v3"
 )
 
@@ -47,9 +46,9 @@ func DiffAction(ctx context.Context, cmd *cli.Command) error {
 		return err
 	}
 
-	onlyLocal := make([]report.DataEntry, 0)
-	onlyRemote := make([]report.DataEntry, 0)
-	inBoth := make([]report.DataEntry, 0)
+	onlyLocal := make([]indexing.Entry, 0)
+	onlyRemote := make([]indexing.Entry, 0)
+	inBoth := make([]indexing.Entry, 0)
 
 	// TODO: Optimize if necessary
 	for _, localEntry := range localEntries {
@@ -57,9 +56,9 @@ func DiffAction(ctx context.Context, cmd *cli.Command) error {
 			return strings.Compare(remoteEntry.AudioDigest, digest)
 		})
 		if ok {
-			inBoth = append(inBoth, report.DataEntryFromIndexEntry(localEntry), report.DataEntryFromIndexEntry(remoteEntries[i]))
+			inBoth = append(inBoth, localEntry, remoteEntries[i])
 		} else {
-			onlyLocal = append(onlyLocal, report.DataEntryFromIndexEntry(localEntry))
+			onlyLocal = append(onlyLocal, localEntry)
 		}
 	}
 
@@ -68,7 +67,7 @@ func DiffAction(ctx context.Context, cmd *cli.Command) error {
 			return strings.Compare(localEntry.AudioDigest, digest)
 		})
 		if !ok {
-			onlyRemote = append(onlyRemote, report.DataEntryFromIndexEntry(remoteEntry))
+			onlyRemote = append(onlyRemote, remoteEntry)
 		}
 	}
 
@@ -77,10 +76,12 @@ func DiffAction(ctx context.Context, cmd *cli.Command) error {
 	case "local-only":
 		for _, entry := range onlyLocal {
 			encoder.Encode(entry)
+			fmt.Println()
 		}
 	case "remote-only":
 		for _, entry := range onlyRemote {
 			encoder.Encode(entry)
+			fmt.Println()
 		}
 	case "diff":
 		panic("not implemented")
