@@ -46,6 +46,11 @@ func NewUploader(ctx context.Context, remote BlobStorage, basePath string) (*Upl
 func (u *Uploader) Upload(ctx context.Context, entry indexing.Entry, force bool) error {
 	logger := slog.With(slog.String("indexName", entry.Name), slog.String("audioDigest", entry.AudioDigest))
 
+	nameInRoot, err := filepath.Rel(u.local.Name(), entry.Name)
+	if err != nil {
+		return err
+	}
+
 	audioDigestAlgorithm, audioDigest, _ := strings.Cut(entry.AudioDigest, ":")
 	blobKey := filepath.Join("blobs", audioDigestAlgorithm, audioDigest)
 
@@ -62,7 +67,7 @@ func (u *Uploader) Upload(ctx context.Context, entry indexing.Entry, force bool)
 		logger.Debug("Local file missing in remote - uploading")
 	}
 
-	file, err := u.local.Open(entry.Name)
+	file, err := u.local.Open(nameInRoot)
 	if err != nil {
 		u.Failures.Add(1)
 		return err
