@@ -11,6 +11,7 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/AlexGustafsson/steward/internal/indexing"
@@ -60,6 +61,9 @@ func DownloadAction(ctx context.Context, cmd *cli.Command) error {
 		return err
 	}
 
+	totalEntries := uint64(0)
+	totalBytes := uint64(0)
+	var processedEntries atomic.Uint64
 	entriesCh := make(chan indexing.Entry, 32)
 
 	var wg sync.WaitGroup
@@ -73,6 +77,9 @@ func DownloadAction(ctx context.Context, cmd *cli.Command) error {
 				slog.Uint64("successes", downloader.Successes.Load()),
 				slog.Uint64("downloadedBytes", downloader.DownloadedBytes.Load()),
 				slog.Uint64("processedBytes", downloader.ProcessedBytes.Load()),
+				slog.Uint64("totalEntries", totalEntries),
+				slog.Uint64("totalBytes", totalBytes),
+				slog.Uint64("processedEntries", processedEntries.Load()),
 			)
 		}
 	}()
@@ -86,7 +93,9 @@ func DownloadAction(ctx context.Context, cmd *cli.Command) error {
 				logger := slog.With(slog.String("indexName", entry.Name), slog.String("audioDigest", entry.AudioDigest))
 
 				logger.Debug("Processing entry")
-				if err := downloader.Download(ctx, entry); err != nil {
+				err := downloader.Download(ctx, entry)
+				processedEntries.Add(1)
+				if err != nil {
 					logger.Error("Failed to download entry", slog.Any("error", err))
 				}
 			}
@@ -103,6 +112,8 @@ func DownloadAction(ctx context.Context, cmd *cli.Command) error {
 		}
 
 		entries = append(entries, entry)
+		totalEntries++
+		totalBytes += uint64(entry.Size)
 	}
 
 	// Bail if there are files that would be overwritten
@@ -132,6 +143,9 @@ func DownloadAction(ctx context.Context, cmd *cli.Command) error {
 			slog.Uint64("successes", downloader.Successes.Load()),
 			slog.Uint64("downloadedBytes", downloader.DownloadedBytes.Load()),
 			slog.Uint64("processedBytes", downloader.ProcessedBytes.Load()),
+			slog.Uint64("totalEntries", totalEntries),
+			slog.Uint64("totalBytes", totalBytes),
+			slog.Uint64("processedEntries", processedEntries.Load()),
 		)
 		os.Exit(1)
 	} else {
@@ -141,6 +155,9 @@ func DownloadAction(ctx context.Context, cmd *cli.Command) error {
 			slog.Uint64("successes", downloader.Successes.Load()),
 			slog.Uint64("downloadedBytes", downloader.DownloadedBytes.Load()),
 			slog.Uint64("processedBytes", downloader.ProcessedBytes.Load()),
+			slog.Uint64("totalEntries", totalEntries),
+			slog.Uint64("totalBytes", totalBytes),
+			slog.Uint64("processedEntries", processedEntries.Load()),
 		)
 	}
 

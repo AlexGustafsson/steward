@@ -2,25 +2,23 @@ import SwiftData
 import SwiftUI
 
 enum Progress {
-  case known(Float)
+  case known(UInt64, UInt64)
   case unknown
 }
 
 struct StatusView: View {
   public var progress: Progress
   public var status: String
-  @State public var logs: [LogEntry]
 
   @Environment(\.dismiss) private var dismiss
 
   var body: some View {
     VStack {
-      // LogTable(logs: logs).frame(width: 500, height: 400)
-      Divider()
       switch progress {
-      case .known(let progress):
-        ProgressView(value: progress).progressViewStyle(.circular).padding(20)
-      default:
+      case .known(let current, let total):
+          ProgressView(value: total == 0 ? 0.0 : Double(current) / Double(total)).progressViewStyle(.circular).padding(20)
+          Text("\(current)/\(total)").foregroundStyle(.secondary)
+      case .unknown:
         ProgressView().padding(20)
       }
     }
@@ -34,7 +32,5 @@ struct StatusView: View {
 }
 
 #Preview {
-  let logs = [LogEntry]()
-
-  StatusView(progress: .known(0.2), status: "Downloading", logs: logs)
+    StatusView(progress: .known(1, 2), status: "Downloading")
 }

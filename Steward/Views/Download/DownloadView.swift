@@ -13,18 +13,14 @@ struct DownloadView: View {
   @State private var showDownloadProgressSheet: Bool = false
   @State private var showCompletedSheet: Bool = false
   @State private var showFailedSheet: Bool = false
-    @State private var showNonEmptyDirectory: Bool = false
+  @State private var showNonEmptyDirectory: Bool = false
 
-  @State private var downloadProgress: Float = 0.0
-  @State private var downloadStatus: String = ""
-
-  @State private var logs: [LogEntry] = []
+  @State private var downloadProgress: StewardTool.DownloadProgress? = nil
 
   var body: some View {
     if entries.count == 0 {
       SelectIndexView(title: "Drag and drop index to download") { url in
         do {
-          self.logs = []
           self.indexTask = try readIndex(from: url)
           Task {
             do {
@@ -33,7 +29,6 @@ struct DownloadView: View {
               print(error)
             }
             self.indexTask = nil
-            self.logs = []
           }
         } catch {
           print(error)
@@ -56,29 +51,32 @@ struct DownloadView: View {
             if panel.runModal() != .OK {
               return
             }
-              
-              if !force {
-                  let isEmpty = FileManager.default.enumerator(atPath: panel.url!.path(percentEncoded: false))?.nextObject() == nil
-                  if !isEmpty {
-                      showNonEmptyDirectory = true
-                      return
-                  }
-              }
 
-            self.downloadProgress = 0.0
+            if !force {
+              let isEmpty =
+                FileManager.default.enumerator(atPath: panel.url!.path(percentEncoded: false))?
+                .nextObject() == nil
+              if !isEmpty {
+                showNonEmptyDirectory = true
+                return
+              }
+            }
+
+            self.downloadProgress = nil
             self.showDownloadProgressSheet = true
 
             do {
               // TODO: Progress reporting
-                self.downloadTask = try StewardTool.download(root: panel.url!, entries: self.entries, force: force)
+              self.downloadTask = try StewardTool.download(
+                root: panel.url!, entries: self.entries, force: force
+              ) { progress in
+                self.downloadProgress = progress
+              }
               Task {
                 do {
                   let _ = try await self.downloadTask?.value
                   self.showCompletedSheet = true
                   self.entries = []
-                  withAnimation {
-                    self.downloadProgress = 1.0
-                  }
                 } catch {
                   self.showFailedSheet = true
                   print(error)
@@ -126,15 +124,19 @@ struct DownloadView: View {
         self.downloadTask?.cancel()
         self.downloadTask = nil
       } content: {
-        StatusView(progress: .known(self.downloadProgress), status: "Downloading", logs: logs)
+        StatusView(
+            progress: .known(self.downloadProgress?.processedEntries ?? 0, self.downloadProgress?.totalEntries ?? 0),
+          status: "Downloading")
       }.sheet(isPresented: $showFailedSheet) {
         self.showFailedSheet = false
       } content: {
         // LogTable(logs: logs).frame(width: 500, height: 400)
       }.sheet(isPresented: $showNonEmptyDirectory) {
-          self.showNonEmptyDirectory = false
+        self.showNonEmptyDirectory = false
       } content: {
-          Text("Refusing to download to a non-empty directory. Select another directory or enable force.").padding()
+        Text(
+          "Refusing to download to a non-empty directory. Select another directory or enable force."
+        ).padding()
       }
     }
   }

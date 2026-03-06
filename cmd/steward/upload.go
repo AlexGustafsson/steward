@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/AlexGustafsson/steward/internal/indexing"
@@ -59,7 +60,10 @@ func UploadAction(ctx context.Context, cmd *cli.Command) error {
 		return err
 	}
 
-	entries := make(chan indexing.Entry, 32)
+	totalEntries := uint64(0)
+	totalBytes := uint64(0)
+	var processedEntries atomic.Uint64
+	entriesCh := make(chan indexing.Entry, 32)
 
 	var wg sync.WaitGroup
 
@@ -72,13 +76,16 @@ func UploadAction(ctx context.Context, cmd *cli.Command) error {
 				slog.Uint64("successes", uploader.Successes.Load()),
 				slog.Uint64("uploadedBytes", uploader.UploadedBytes.Load()),
 				slog.Uint64("processedBytes", uploader.ProcessedBytes.Load()),
+				slog.Uint64("totalEntries", totalEntries),
+				slog.Uint64("totalBytes", totalBytes),
+				slog.Uint64("processedEntries", processedEntries.Load()),
 			)
 		}
 	}()
 
 	for range 10 {
 		wg.Go(func() {
-			for entry := range entries {
+			for entry := range entriesCh {
 				logger := slog.With(slog.String("indexName", entry.Name), slog.String("audioDigest", entry.AudioDigest))
 
 				logger.Debug("Processing entry")
@@ -89,6 +96,7 @@ func UploadAction(ctx context.Context, cmd *cli.Command) error {
 		})
 	}
 
+	entries := make([]indexing.Entry, 0)
 	scanner := bufio.NewScanner(reader)
 	for scanner.Scan() {
 		var entry indexing.Entry
@@ -97,9 +105,15 @@ func UploadAction(ctx context.Context, cmd *cli.Command) error {
 			break
 		}
 
-		entries <- entry
+		entries = append(entries, entry)
+		totalEntries++
+		totalBytes += uint64(entry.Size)
 	}
-	close(entries)
+
+	for _, entry := range entries {
+		entriesCh <- entry
+	}
+	close(entriesCh)
 
 	wg.Wait()
 	ticker.Stop()
@@ -111,6 +125,9 @@ func UploadAction(ctx context.Context, cmd *cli.Command) error {
 			slog.Uint64("successes", uploader.Successes.Load()),
 			slog.Uint64("uploadedBytes", uploader.UploadedBytes.Load()),
 			slog.Uint64("processedBytes", uploader.ProcessedBytes.Load()),
+			slog.Uint64("totalEntries", totalEntries),
+			slog.Uint64("totalBytes", totalBytes),
+			slog.Uint64("processedEntries", processedEntries.Load()),
 		)
 		return ErrExit
 	} else {
@@ -120,6 +137,9 @@ func UploadAction(ctx context.Context, cmd *cli.Command) error {
 			slog.Uint64("successes", uploader.Successes.Load()),
 			slog.Uint64("uploadedBytes", uploader.UploadedBytes.Load()),
 			slog.Uint64("processedBytes", uploader.ProcessedBytes.Load()),
+			slog.Uint64("totalEntries", totalEntries),
+			slog.Uint64("totalBytes", totalBytes),
+			slog.Uint64("processedEntries", processedEntries.Load()),
 		)
 	}
 

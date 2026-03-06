@@ -4,18 +4,19 @@ import SwiftUI
 struct ConfirmEntriesView: View {
   @Binding public var entries: [IndexEntry]
   public var confirmLabel: String = "Confirm"
-      
-  let action: (Bool, Bool) -> Void
-    
-    @State private var force  = false
-    @State private var showForceHelp = false
 
-    init(entries: Binding<[IndexEntry]>, action: @escaping (Bool, Bool) -> Void) {
+  let action: (Bool, Bool) -> Void
+
+  @State private var force = false
+  @State private var showForceHelp = false
+
+  init(entries: Binding<[IndexEntry]>, action: @escaping (Bool, Bool) -> Void) {
     self._entries = entries
     self.action = action
   }
 
-  init(entries: Binding<[IndexEntry]>, confirmLabel: String, action: @escaping (Bool, Bool) -> Void) {
+  init(entries: Binding<[IndexEntry]>, confirmLabel: String, action: @escaping (Bool, Bool) -> Void)
+  {
     self._entries = entries
     self.confirmLabel = confirmLabel
     self.action = action
@@ -25,26 +26,26 @@ struct ConfirmEntriesView: View {
     VStack {
       EntriesTable(entries: $entries)
       Divider()
-        HStack {
-            Toggle(isOn: $force) {
-                Text("Force")
-            }
-            .toggleStyle(.checkbox)
-            .foregroundStyle(.red)
-            Button(action: { showForceHelp.toggle() }) {
-                Image(systemName: "info.circle").foregroundStyle(.secondary)
-            }.popover(isPresented: $showForceHelp) {
-                Text("Overwrite remote or local files if they don't already match").padding()
-            }.buttonStyle(PlainButtonStyle())
-            Spacer()
-        }.padding()
+      HStack {
+        Toggle(isOn: $force) {
+          Text("Force")
+        }
+        .toggleStyle(.checkbox)
+        .foregroundStyle(.red)
+        Button(action: { showForceHelp.toggle() }) {
+          Image(systemName: "info.circle").foregroundStyle(.secondary)
+        }.popover(isPresented: $showForceHelp) {
+          Text("Overwrite remote or local files if they don't already match").padding()
+        }.buttonStyle(PlainButtonStyle())
+        Spacer()
+      }.padding()
       HStack {
         Spacer()
         Button("Cancel") {
-            self.action(false, self.force)
+          self.action(false, self.force)
         }
         Button(confirmLabel) {
-            self.action(true, self.force)
+          self.action(true, self.force)
         }.foregroundStyle(self.force ? .red : .blue)
       }.padding()
     }

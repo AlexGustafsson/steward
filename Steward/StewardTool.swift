@@ -108,11 +108,123 @@ class StewardTool {
     func wait() async throws
   }
 
+  public struct DownloadProgress {
+    public var failures: UInt64
+    public var successes: UInt64
+    public var downloadedBytes: UInt64
+    public var processedBytes: UInt64
+    public var totalEntries: UInt64
+    public var totalBytes: UInt64
+    public var processedEntries: UInt64
+
+    init?(fromEntry entry: LogEntry) {
+      if case .number(let failures) = entry.additionalProperties["failures"] {
+        self.failures = UInt64(failures)
+      } else {
+        return nil
+      }
+
+      if case .number(let successes) = entry.additionalProperties["successes"] {
+        self.successes = UInt64(successes)
+      } else {
+        return nil
+      }
+
+      if case .number(let downloadedBytes) = entry.additionalProperties["downloadedBytes"] {
+        self.downloadedBytes = UInt64(downloadedBytes)
+      } else {
+        return nil
+      }
+
+      if case .number(let processedBytes) = entry.additionalProperties["processedBytes"] {
+        self.processedBytes = UInt64(processedBytes)
+      } else {
+        return nil
+      }
+
+      if case .number(let totalEntries) = entry.additionalProperties["totalEntries"] {
+        self.totalEntries = UInt64(totalEntries)
+      } else {
+        return nil
+      }
+
+      if case .number(let totalBytes) = entry.additionalProperties["totalBytes"] {
+        self.totalBytes = UInt64(totalBytes)
+      } else {
+        return nil
+      }
+
+      if case .number(let processedEntries) = entry.additionalProperties["processedEntries"] {
+        self.processedEntries = UInt64(processedEntries)
+      } else {
+        return nil
+      }
+    }
+  }
+
+  public struct UploadProgress {
+    public var failures: UInt64
+    public var successes: UInt64
+    public var uploadedBytes: UInt64
+    public var processedBytes: UInt64
+    public var totalEntries: UInt64
+    public var totalBytes: UInt64
+    public var processedEntries: UInt64
+
+    init?(fromEntry entry: LogEntry) {
+      if case .number(let failures) = entry.additionalProperties["failures"] {
+        self.failures = UInt64(failures)
+      } else {
+        return nil
+      }
+
+      if case .number(let successes) = entry.additionalProperties["successes"] {
+        self.successes = UInt64(successes)
+      } else {
+        return nil
+      }
+
+      if case .number(let uploadedBytes) = entry.additionalProperties["uploadedBytes"] {
+        self.uploadedBytes = UInt64(uploadedBytes)
+      } else {
+        return nil
+      }
+
+      if case .number(let processedBytes) = entry.additionalProperties["processedBytes"] {
+        self.processedBytes = UInt64(processedBytes)
+      } else {
+        return nil
+      }
+
+      if case .number(let totalEntries) = entry.additionalProperties["totalEntries"] {
+        self.totalEntries = UInt64(totalEntries)
+      } else {
+        return nil
+      }
+
+      if case .number(let totalBytes) = entry.additionalProperties["totalBytes"] {
+        self.totalBytes = UInt64(totalBytes)
+      } else {
+        return nil
+      }
+
+      if case .number(let processedEntries) = entry.additionalProperties["processedEntries"] {
+        self.processedEntries = UInt64(processedEntries)
+      } else {
+        return nil
+      }
+    }
+  }
+
+  // TODO: Observable upload/download stats based on known log format?
   private struct Logger: Stderr {
     private let pipe: Pipe
     private let task: Task<Void, Swift.Error>
 
-    init() {
+    init(
+      onDownloadProgress: (@MainActor (DownloadProgress) -> Void)?,
+      onUploadProgress: (@MainActor (UploadProgress) -> Void)?
+    ) {
       let pipe = Pipe()
 
       let decoder = JSONDecoder()
@@ -123,6 +235,8 @@ class StewardTool {
         for try await line in pipe.fileHandleForReading.bytes.lines {
           let line = line.data(using: .utf8)!
           let entry = try decoder.decode(LogEntry.self, from: line)
+
+          // Log the line
           switch entry.level {
           case "DEBUG":
             systemLogger.debug("\(entry.msg, privacy: .public)")
@@ -136,6 +250,21 @@ class StewardTool {
           default:
             systemLogger.info("\(entry.msg, privacy: .public)")
           }
+
+          // Try to interpret progress reporting
+          switch entry.msg {
+          case "Upload in progress":
+            if let entry = UploadProgress(fromEntry: entry) {
+              await onUploadProgress?(entry)
+            }
+          case "Download in progress":
+            if let entry = DownloadProgress(fromEntry: entry) {
+              await onDownloadProgress?(entry)
+            }
+          default:
+            break
+          }
+
         }
       }
     }
@@ -218,10 +347,11 @@ class StewardTool {
       arguments: ["--verbose", "index"] + roots.map({ x in x.path(percentEncoded: false) }),
       stdin: nil,
       stdout: try StewardTool.FileWriter(outputPath: outputPath),
-      stderr: StewardTool.Logger(),
+      stderr: StewardTool.Logger(onDownloadProgress: nil, onUploadProgress: nil),
     )
   }
 
+  // TODO: Return protocol for observable updates (which Logger implements)?
   public static func index(roots: [URL]) throws -> Task<[IndexEntry], Swift.Error> {
     let stdout = StewardTool.Decoder<IndexEntry>()
     let task = try self.run(
@@ -229,7 +359,7 @@ class StewardTool {
       arguments: ["--verbose", "index"] + roots.map({ x in x.path(percentEncoded: false) }),
       stdin: nil,
       stdout: stdout,
-      stderr: StewardTool.Logger(),
+      stderr: StewardTool.Logger(onDownloadProgress: nil, onUploadProgress: nil),
     )
 
     return Task {
@@ -238,10 +368,15 @@ class StewardTool {
     }
   }
 
-    public static func upload(root: URL, entries: [IndexEntry], force: Bool) throws -> Task<Void, Swift.Error> {
+  public static func upload(
+    root: URL, entries: [IndexEntry], force: Bool,
+    _ onProgress: @MainActor @escaping (UploadProgress) -> Void
+  ) throws -> Task<Void, Swift.Error> {
     guard let credentials = try GetCredentials() else {
       throw Error.unexpectedError
     }
+
+    let logger = StewardTool.Logger(onDownloadProgress: nil, onUploadProgress: onProgress)
 
     return try self.run(
       environment: [
@@ -255,7 +390,7 @@ class StewardTool {
       ] + (force ? ["--force"] : []),
       stdin: StewardTool.Encoder(entries: entries),
       stdout: nil,
-      stderr: StewardTool.Logger(),
+      stderr: logger,
     )
   }
 
@@ -271,7 +406,7 @@ class StewardTool {
       ],
       stdin: StewardTool.Encoder(entries: remote),
       stdout: stdout,
-      stderr: StewardTool.Logger(),
+      stderr: StewardTool.Logger(onDownloadProgress: nil, onUploadProgress: nil),
     )
 
     return Task {
@@ -280,10 +415,15 @@ class StewardTool {
     }
   }
 
-    public static func download(root: URL, entries: [IndexEntry], force: Bool) throws -> Task<Void, Swift.Error> {
+  public static func download(
+    root: URL, entries: [IndexEntry], force: Bool,
+    _ onProgress: @MainActor @escaping (DownloadProgress) -> Void
+  ) throws -> (Task<Void, Swift.Error>) {
     guard let credentials = try GetCredentials() else {
       throw Error.unexpectedError
     }
+
+    let logger = StewardTool.Logger(onDownloadProgress: onProgress, onUploadProgress: nil)
 
     return try self.run(
       environment: [
@@ -297,7 +437,7 @@ class StewardTool {
       ] + (force ? ["--force"] : []),
       stdin: StewardTool.Encoder(entries: entries),
       stdout: nil,
-      stderr: StewardTool.Logger(),
+      stderr: logger,
     )
   }
 }

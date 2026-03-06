@@ -64,7 +64,6 @@ struct IndexEntry: Identifiable, Codable {
 enum JSONValue: Codable, Equatable {
   case string(String)
   case number(Double)
-  case int(Int)
   case bool(Bool)
   case object([String: JSONValue])
   case array([JSONValue])
@@ -77,8 +76,6 @@ enum JSONValue: Codable, Equatable {
       self = .null
     } else if let bool = try? container.decode(Bool.self) {
       self = .bool(bool)
-    } else if let int = try? container.decode(Int.self) {
-      self = .int(int)
     } else if let double = try? container.decode(Double.self) {
       self = .number(double)
     } else if let string = try? container.decode(String.self) {
@@ -100,8 +97,6 @@ enum JSONValue: Codable, Equatable {
     case .string(let v):
       return v
     case .number(let v):
-      return v.formatted()
-    case .int(let v):
       return v.formatted()
     case .bool(let v):
       return v ? "true" : "false"

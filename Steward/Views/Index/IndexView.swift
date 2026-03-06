@@ -34,7 +34,7 @@ struct IndexView: View {
       self.indexTask?.cancel()
       self.indexTask = nil
     } content: {
-      StatusView(progress: .unknown, status: "Indexing", logs: logs)
+      StatusView(progress: .unknown, status: "Indexing")
     }
   }
 }
