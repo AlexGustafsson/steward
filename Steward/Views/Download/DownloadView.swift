@@ -61,10 +61,7 @@ struct DownloadView: View {
 
             do {
               // TODO: Progress reporting
-              self.downloadTask = try download(root: panel.url!, entries: self.entries) {
-                logEntry in
-                logs.append(logEntry)
-              }
+              self.downloadTask = try StewardTool.download(root: panel.url!, entries: self.entries)
               Task {
                 do {
                   let _ = try await self.downloadTask?.value
@@ -99,9 +96,7 @@ struct DownloadView: View {
             panel.allowedContentTypes = [.json, .gzip]
             if panel.runModal() == .OK {
               do {
-                self.filterTask = try diff(local: panel.url!, remote: entries) { logEntry in
-                  logs.append(logEntry)
-                }
+                self.filterTask = try StewardTool.diff(local: panel.url!, remote: entries)
                 Task {
                   do {
                     self.entries = try await self.filterTask!.value
@@ -126,7 +121,7 @@ struct DownloadView: View {
       }.sheet(isPresented: $showFailedSheet) {
         self.showFailedSheet = false
       } content: {
-        LogTable(logs: logs).frame(width: 500, height: 400)
+        // LogTable(logs: logs).frame(width: 500, height: 400)
       }
     }
   }

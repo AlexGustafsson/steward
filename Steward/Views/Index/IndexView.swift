@@ -19,9 +19,7 @@ struct IndexView: View {
       savePanel.begin { (result) in
         if result == .OK {
           showIndexProgressSheet = true
-          indexTask = try? index(roots: urls, outputPath: savePanel.url!) { logEntry in
-            logs.append(logEntry)
-          }
+          indexTask = try? StewardTool.index(roots: urls, to: savePanel.url!)
           Task {
             do {
               try await indexTask?.value

@@ -15,7 +15,7 @@ struct StatusView: View {
 
   var body: some View {
     VStack {
-      LogTable(logs: logs).frame(width: 500, height: 400)
+      // LogTable(logs: logs).frame(width: 500, height: 400)
       Divider()
       switch progress {
       case .known(let progress):
@@ -34,9 +34,7 @@ struct StatusView: View {
 }
 
 #Preview {
-  let logs = [
-    LogEntry(id: 0, time: Date.now, level: "DEBUG", msg: "Hello World")
-  ]
+  let logs = [LogEntry]()
 
   StatusView(progress: .known(0.2), status: "Downloading", logs: logs)
 }

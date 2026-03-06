@@ -26,9 +26,7 @@ struct UploadView: View {
 
         do {
           self.logs = []
-          self.indexTask = try index(roots: [url]) { logEntry in
-            logs.append(logEntry)
-          }
+          self.indexTask = try StewardTool.index(roots: [url])
           Task {
             do {
               self.url = url
@@ -64,9 +62,7 @@ struct UploadView: View {
 
             do {
               // TODO: Progress reporting
-              self.uploadTask = try upload(root: url!, entries: indexEntries) { logEntry in
-                logs.append(logEntry)
-              }
+              self.uploadTask = try StewardTool.upload(root: url!, entries: indexEntries)
               Task {
                 do {
                   let _ = try await self.uploadTask?.value
@@ -99,7 +95,7 @@ struct UploadView: View {
       }.sheet(isPresented: $showFailedSheet) {
         self.showFailedSheet = false
       } content: {
-        LogTable(logs: logs).frame(width: 500, height: 400)
+        // LogTable(logs: logs).frame(width: 500, height: 400)
       }
     }
   }
