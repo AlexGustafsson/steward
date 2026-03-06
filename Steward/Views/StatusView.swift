@@ -7,9 +7,9 @@ enum Progress {
 }
 
 struct StatusView: View {
-    public var progress: Progress
-    public var status: String
-    @State public var logs: [LogEntry]
+  public var progress: Progress
+  public var status: String
+  @State public var logs: [LogEntry]
 
   @Environment(\.dismiss) private var dismiss
 
@@ -24,19 +24,19 @@ struct StatusView: View {
         ProgressView().padding(20)
       }
     }
-      .toolbar {
-        ToolbarItem(placement: .cancellationAction) {
-          Button("Cancel") { dismiss() }.foregroundStyle(.red).keyboardShortcut(.cancelAction)
-        }
-      }.padding(EdgeInsets(top: 20, leading: 40, bottom: 20, trailing: 40))
+    .toolbar {
+      ToolbarItem(placement: .cancellationAction) {
+        Button("Cancel") { dismiss() }.foregroundStyle(.red).keyboardShortcut(.cancelAction)
+      }
+    }.padding(EdgeInsets(top: 20, leading: 40, bottom: 20, trailing: 40))
 
   }
 }
 
 #Preview {
-    let logs = [
-        LogEntry(id: 0, time: Date.now, level: "DEBUG", msg: "Hello World"),
-    ]
-    
-    StatusView(progress: .known(0.2), status: "Downloading", logs: logs)
+  let logs = [
+    LogEntry(id: 0, time: Date.now, level: "DEBUG", msg: "Hello World")
+  ]
+
+  StatusView(progress: .known(0.2), status: "Downloading", logs: logs)
 }

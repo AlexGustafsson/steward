@@ -5,7 +5,7 @@ struct SelectFoldersView: View {
   public var title: String
 
   @State private var isHovering: Bool = false
-    @State private var multi: Bool = true
+  @State private var multi: Bool = true
 
   @Environment(\.isEnabled) private var isEnabled
 
@@ -16,12 +16,12 @@ struct SelectFoldersView: View {
     self.action = action
   }
 
-    init(title: String, multi: Bool, action: @escaping ([URL]) -> Void) {
-      self.title = title
-        self.multi = multi
-      self.action = action
-    }
-    
+  init(title: String, multi: Bool, action: @escaping ([URL]) -> Void) {
+    self.title = title
+    self.multi = multi
+    self.action = action
+  }
+
   var body: some View {
     ZStack {
       Rectangle().stroke(style: StrokeStyle(lineWidth: 2, dash: [5])).foregroundStyle(
@@ -30,7 +30,7 @@ struct SelectFoldersView: View {
         Image(systemName: "arrow.up.folder").font(.largeTitle).foregroundStyle(
           .gray.opacity(isEnabled ? 1.0 : 0.3))
         Text(title).font(.largeTitle).foregroundStyle(.gray.opacity(isEnabled ? 1.0 : 0.3))
-          Button(multi ? "Select folders" : "Select folder") {
+        Button(multi ? "Select folders" : "Select folder") {
           let panel = NSOpenPanel()
           panel.allowsMultipleSelection = multi
           panel.canChooseDirectories = true

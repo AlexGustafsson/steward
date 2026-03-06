@@ -29,16 +29,16 @@ func SetCredentials(_ credentials: Credentials) throws {
   case errSecSuccess:
     return
   case errSecDuplicateItem:
-      let update: [String: Any] = [
-        kSecValueData as String: data
-      ]
+    let update: [String: Any] = [
+      kSecValueData as String: data
+    ]
     let status = SecItemUpdate(query as CFDictionary, update as CFDictionary)
-      switch status {
-      case errSecSuccess:
-        return
-      default:
-        throw KeychainError.unexpectedStatus(status)
-      }
+    switch status {
+    case errSecSuccess:
+      return
+    default:
+      throw KeychainError.unexpectedStatus(status)
+    }
   default:
     throw KeychainError.unexpectedStatus(status)
   }
