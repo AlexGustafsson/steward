@@ -32,12 +32,24 @@ type Downloader struct {
 	blobs  map[string]BlobInfo
 	remote BlobStorage
 	local  *os.Root
+	force  bool
 }
 
-func NewDownloader(ctx context.Context, remote BlobStorage, basePath string) (*Downloader, error) {
-	err := os.MkdirAll(basePath, os.ModePerm)
+func NewDownloader(ctx context.Context, remote BlobStorage, basePath string, force bool) (*Downloader, error) {
+	if force {
+		err := os.MkdirAll(basePath, os.ModePerm)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	entries, err := os.ReadDir(basePath)
 	if err != nil {
 		return nil, err
+	}
+
+	if len(entries) > 0 && !force {
+		return nil, fmt.Errorf("expected empty download directory when force is disabled")
 	}
 
 	root, err := os.OpenRoot(basePath)
@@ -55,10 +67,11 @@ func NewDownloader(ctx context.Context, remote BlobStorage, basePath string) (*D
 		blobs:  blobs,
 		remote: remote,
 		local:  root,
+		force:  force,
 	}, nil
 }
 
-func (d *Downloader) Download(ctx context.Context, entry indexing.Entry, force bool) error {
+func (d *Downloader) Download(ctx context.Context, entry indexing.Entry) error {
 	logger := slog.With(slog.String("indexName", entry.Name), slog.String("audioDigest", entry.AudioDigest))
 
 	audioDigestAlgorithm, audioDigest, _ := strings.Cut(entry.AudioDigest, ":")
@@ -97,7 +110,7 @@ func (d *Downloader) Download(ctx context.Context, entry indexing.Entry, force b
 	defer file.Close()
 
 	if fileExists {
-		if force {
+		if d.force {
 			slog.Debug("Local file name already exists but force enabled - downloading")
 
 			md5sum := md5.New()

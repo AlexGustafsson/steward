@@ -55,14 +55,14 @@ struct UploadView: View {
     } else {
       ConfirmEntriesView(
         entries: $indexEntries, confirmLabel: "Upload",
-        action: { confirmed in
+        action: { confirmed, force in
           if confirmed {
             self.uploadProgress = 0.0
             self.showUploadProgressSheet = true
 
             do {
               // TODO: Progress reporting
-              self.uploadTask = try StewardTool.upload(root: url!, entries: indexEntries)
+                self.uploadTask = try StewardTool.upload(root: url!, entries: indexEntries, force: force)
               Task {
                 do {
                   let _ = try await self.uploadTask?.value

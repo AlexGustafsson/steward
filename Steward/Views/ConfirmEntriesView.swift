@@ -4,15 +4,18 @@ import SwiftUI
 struct ConfirmEntriesView: View {
   @Binding public var entries: [IndexEntry]
   public var confirmLabel: String = "Confirm"
+      
+  let action: (Bool, Bool) -> Void
+    
+    @State private var force  = false
+    @State private var showForceHelp = false
 
-  let action: (Bool) -> Void
-
-  init(entries: Binding<[IndexEntry]>, action: @escaping (Bool) -> Void) {
+    init(entries: Binding<[IndexEntry]>, action: @escaping (Bool, Bool) -> Void) {
     self._entries = entries
     self.action = action
   }
 
-  init(entries: Binding<[IndexEntry]>, confirmLabel: String, action: @escaping (Bool) -> Void) {
+  init(entries: Binding<[IndexEntry]>, confirmLabel: String, action: @escaping (Bool, Bool) -> Void) {
     self._entries = entries
     self.confirmLabel = confirmLabel
     self.action = action
@@ -22,14 +25,27 @@ struct ConfirmEntriesView: View {
     VStack {
       EntriesTable(entries: $entries)
       Divider()
+        HStack {
+            Toggle(isOn: $force) {
+                Text("Force")
+            }
+            .toggleStyle(.checkbox)
+            .foregroundStyle(.red)
+            Button(action: { showForceHelp.toggle() }) {
+                Image(systemName: "info.circle").foregroundStyle(.secondary)
+            }.popover(isPresented: $showForceHelp) {
+                Text("Overwrite remote or local files if they don't already match").padding()
+            }.buttonStyle(PlainButtonStyle())
+            Spacer()
+        }.padding()
       HStack {
         Spacer()
         Button("Cancel") {
-          self.action(false)
+            self.action(false, self.force)
         }
         Button(confirmLabel) {
-          self.action(true)
-        }.foregroundStyle(.blue)
+            self.action(true, self.force)
+        }.foregroundStyle(self.force ? .red : .blue)
       }.padding()
     }
   }
@@ -47,7 +63,7 @@ struct ConfirmEntriesView: View {
       pictureDigest: "md5:d41d8cd98f00b204e9800998ecf8427e"),
   ]
 
-  ConfirmEntriesView(entries: $entries) { confirmed in
+  ConfirmEntriesView(entries: $entries) { confirmed, force in
     print(confirmed)
   }
 }

@@ -13,6 +13,7 @@ struct DownloadView: View {
   @State private var showDownloadProgressSheet: Bool = false
   @State private var showCompletedSheet: Bool = false
   @State private var showFailedSheet: Bool = false
+    @State private var showNonEmptyDirectory: Bool = false
 
   @State private var downloadProgress: Float = 0.0
   @State private var downloadStatus: String = ""
@@ -45,7 +46,7 @@ struct DownloadView: View {
     } else {
       ConfirmEntriesView(
         entries: $entries, confirmLabel: "Download",
-        action: { confirmed in
+        action: { confirmed, force in
           if confirmed {
             let panel = NSOpenPanel()
             panel.allowsMultipleSelection = false
@@ -55,13 +56,21 @@ struct DownloadView: View {
             if panel.runModal() != .OK {
               return
             }
+              
+              if !force {
+                  let isEmpty = FileManager.default.enumerator(atPath: panel.url!.path(percentEncoded: false))?.nextObject() == nil
+                  if !isEmpty {
+                      showNonEmptyDirectory = true
+                      return
+                  }
+              }
 
             self.downloadProgress = 0.0
             self.showDownloadProgressSheet = true
 
             do {
               // TODO: Progress reporting
-              self.downloadTask = try StewardTool.download(root: panel.url!, entries: self.entries)
+                self.downloadTask = try StewardTool.download(root: panel.url!, entries: self.entries, force: force)
               Task {
                 do {
                   let _ = try await self.downloadTask?.value
@@ -122,6 +131,10 @@ struct DownloadView: View {
         self.showFailedSheet = false
       } content: {
         // LogTable(logs: logs).frame(width: 500, height: 400)
+      }.sheet(isPresented: $showNonEmptyDirectory) {
+          self.showNonEmptyDirectory = false
+      } content: {
+          Text("Refusing to download to a non-empty directory. Select another directory or enable force.").padding()
       }
     }
   }

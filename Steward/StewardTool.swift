@@ -238,7 +238,7 @@ class StewardTool {
     }
   }
 
-  public static func upload(root: URL, entries: [IndexEntry]) throws -> Task<Void, Swift.Error> {
+    public static func upload(root: URL, entries: [IndexEntry], force: Bool) throws -> Task<Void, Swift.Error> {
     guard let credentials = try GetCredentials() else {
       throw Error.unexpectedError
     }
@@ -252,7 +252,7 @@ class StewardTool {
       arguments: [
         "--verbose", "upload", "--from", root.path(percentEncoded: false), "--to",
         credentials.bucket,
-      ],
+      ] + (force ? ["--force"] : []),
       stdin: StewardTool.Encoder(entries: entries),
       stdout: nil,
       stderr: StewardTool.Logger(),
@@ -280,7 +280,7 @@ class StewardTool {
     }
   }
 
-  public static func download(root: URL, entries: [IndexEntry]) throws -> Task<Void, Swift.Error> {
+    public static func download(root: URL, entries: [IndexEntry], force: Bool) throws -> Task<Void, Swift.Error> {
     guard let credentials = try GetCredentials() else {
       throw Error.unexpectedError
     }
@@ -294,7 +294,7 @@ class StewardTool {
       arguments: [
         "--verbose", "download", "--from", credentials.bucket, "--to",
         root.path(percentEncoded: false),
-      ],
+      ] + (force ? ["--force"] : []),
       stdin: StewardTool.Encoder(entries: entries),
       stdout: nil,
       stderr: StewardTool.Logger(),

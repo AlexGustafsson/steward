@@ -54,7 +54,7 @@ func DownloadAction(ctx context.Context, cmd *cli.Command) error {
 		}
 	}
 
-	downloader, err := storage.NewDownloader(ctx, remote, cmd.String("to"))
+	downloader, err := storage.NewDownloader(ctx, remote, cmd.String("to"), force)
 	if err != nil {
 		return err
 	}
@@ -85,7 +85,7 @@ func DownloadAction(ctx context.Context, cmd *cli.Command) error {
 				logger := slog.With(slog.String("indexName", entry.Name), slog.String("audioDigest", entry.AudioDigest))
 
 				logger.Debug("Processing entry")
-				if err := downloader.Download(ctx, entry, force); err != nil {
+				if err := downloader.Download(ctx, entry); err != nil {
 					logger.Error("Failed to download entry", slog.Any("error", err))
 				}
 			}
