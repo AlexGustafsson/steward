@@ -48,10 +48,3 @@ which makes it great for identifying differences in metadata.
 Musicbrainz' excellent GUI tool is called Picard. The actor playing Picard is
 Stewart and this tool (and to some extent Picard) is a _steward_ of FLAC
 metadata.
-
-## Unsolved issues
-
-- When downloading, if downloading duplicate albums (same artist, same album,
-  and same track), then the duplicate file will be assumed to be the same song,
-  meaning it will be skipped (or overwritten if force is enabled). If you want
-  to download duplicates, download them separately.

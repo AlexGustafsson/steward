@@ -5,6 +5,7 @@ import (
 	"compress/gzip"
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"log/slog"
 	"os"
@@ -59,7 +60,7 @@ func DownloadAction(ctx context.Context, cmd *cli.Command) error {
 		return err
 	}
 
-	entries := make(chan indexing.Entry, 32)
+	entriesCh := make(chan indexing.Entry, 32)
 
 	var wg sync.WaitGroup
 
@@ -81,7 +82,7 @@ func DownloadAction(ctx context.Context, cmd *cli.Command) error {
 			// NOTE: Assumes that all entries are interesting, whereas when uploading,
 			// files are diffed and ignored if they already exist remotely. So index
 			// diffing is carried out beforehand
-			for entry := range entries {
+			for entry := range entriesCh {
 				logger := slog.With(slog.String("indexName", entry.Name), slog.String("audioDigest", entry.AudioDigest))
 
 				logger.Debug("Processing entry")
@@ -92,6 +93,7 @@ func DownloadAction(ctx context.Context, cmd *cli.Command) error {
 		})
 	}
 
+	entries := make([]indexing.Entry, 0)
 	scanner := bufio.NewScanner(reader)
 	for scanner.Scan() {
 		var entry indexing.Entry
@@ -100,9 +102,25 @@ func DownloadAction(ctx context.Context, cmd *cli.Command) error {
 			break
 		}
 
-		entries <- entry
+		entries = append(entries, entry)
 	}
-	close(entries)
+
+	// Bail if there are files that would be overwritten
+	fileNames := make(map[string]struct{})
+	for _, entry := range entries {
+		name := storage.DefaultFileNameFunc(entry)
+		slog.Error(name)
+		if _, ok := fileNames[name]; ok {
+			return fmt.Errorf("duplicate target files for path: %s", name)
+		}
+
+		fileNames[name] = struct{}{}
+	}
+
+	for _, entry := range entries {
+		entriesCh <- entry
+	}
+	close(entriesCh)
 
 	wg.Wait()
 	ticker.Stop()
