@@ -387,7 +387,7 @@ class StewardTool {
       arguments: [
         "--verbose", "upload", "--from", root.path(percentEncoded: false), "--to",
         credentials.bucket,
-      ] + (force ? ["--force"] : []),
+      ] + (force ? ["--force"] : []) + ["-"],
       stdin: StewardTool.Encoder(entries: entries),
       stdout: nil,
       stderr: logger,
@@ -434,7 +434,7 @@ class StewardTool {
       arguments: [
         "--verbose", "download", "--from", credentials.bucket, "--to",
         root.path(percentEncoded: false),
-      ] + (force ? ["--force"] : []),
+      ] + (force ? ["--force"] : []) + ["-"],
       stdin: StewardTool.Encoder(entries: entries),
       stdout: nil,
       stderr: logger,

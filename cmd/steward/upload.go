@@ -30,12 +30,14 @@ func UploadAction(ctx context.Context, cmd *cli.Command) error {
 		return err
 	}
 
+	// When upload, an index is not required if a just-in-time index is created.
+	// Use "-" convention to signal reading from stdin
 	indexPath := cmd.StringArg("index")
 	var reader io.ReadCloser
-	if indexPath == "" {
+	if indexPath == "-" {
 		slog.Debug("Reading index from stdin")
 		reader = io.NopCloser(os.Stdin)
-	} else {
+	} else if indexPath != "" {
 		slog.Debug("Reading index from file")
 		file, err := os.Open(indexPath)
 		if err != nil {
@@ -96,18 +98,31 @@ func UploadAction(ctx context.Context, cmd *cli.Command) error {
 		})
 	}
 
+	// If no index is specified, create an index just-in-time
 	entries := make([]indexing.Entry, 0)
-	scanner := bufio.NewScanner(reader)
-	for scanner.Scan() {
-		var entry indexing.Entry
-		if err := json.Unmarshal(scanner.Bytes(), &entry); err != nil {
-			slog.Error("Failed to parse index", slog.Any("error", err))
-			break
+	if reader == nil {
+		slog.Info("No index specified, creating one just-in-time")
+		err := indexing.IndexDir(cmd.String("from"), func(e indexing.Entry) error {
+			entries = append(entries, e)
+			return nil
+		})
+		if err != nil {
+			return err
 		}
+		slog.Info("Index created successfully")
+	} else {
+		scanner := bufio.NewScanner(reader)
+		for scanner.Scan() {
+			var entry indexing.Entry
+			if err := json.Unmarshal(scanner.Bytes(), &entry); err != nil {
+				slog.Error("Failed to parse index", slog.Any("error", err))
+				break
+			}
 
-		entries = append(entries, entry)
-		totalEntries++
-		totalBytes += uint64(entry.Size)
+			entries = append(entries, entry)
+			totalEntries++
+			totalBytes += uint64(entry.Size)
+		}
 	}
 
 	for _, entry := range entries {

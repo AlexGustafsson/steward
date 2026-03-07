@@ -69,7 +69,7 @@ func main() {
 			{
 				Name:      "upload",
 				Action:    UploadAction,
-				Usage:     "Uploads files in an index to a remote",
+				Usage:     "Uploads to a remote",
 				ArgsUsage: "[index]",
 				Arguments: []cli.Argument{
 					&cli.StringArg{
@@ -94,7 +94,7 @@ func main() {
 				Name:      "download",
 				Usage:     "Downloads files in an index from a remote",
 				Action:    DownloadAction,
-				ArgsUsage: "[index]",
+				ArgsUsage: "<index>",
 				Arguments: []cli.Argument{
 					&cli.StringArg{
 						Name: "index",

@@ -31,12 +31,16 @@ func DownloadAction(ctx context.Context, cmd *cli.Command) error {
 		return err
 	}
 
+	// When downloading, an index is required. Use "-" convention to signal
+	// reading from stdin
 	indexPath := cmd.StringArg("index")
 	var reader io.ReadCloser
 	if indexPath == "" {
+		return fmt.Errorf("no index specified")
+	} else if indexPath == "-" {
 		slog.Debug("Reading index from stdin")
 		reader = io.NopCloser(os.Stdin)
-	} else {
+	} else if indexPath != "" {
 		slog.Debug("Reading index from file")
 		file, err := os.Open(indexPath)
 		if err != nil {
