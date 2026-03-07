@@ -56,7 +56,12 @@ struct EntriesTable: View {
         }
       }.onChange(of: sortOrder) { _, sortOrder in
         entries.sort(using: sortOrder)
-      }
+      }.keyboardShortcut(.delete, modifiers: []).onDeleteCommand(perform: {
+        for entry in selection {
+          delete(entry)
+        }
+        selection.removeAll()
+      })
     }
   }
 }
