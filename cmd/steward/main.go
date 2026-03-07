@@ -14,6 +14,8 @@ var ErrExit = errors.New("exit code")
 func main() {
 	slog.SetDefault(slog.New(slog.NewJSONHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelWarn})))
 	cmd := &cli.Command{
+		Usage:       "Index, diff, backup and replicate large FLAC libraries",
+		Description: "Steward lets you index, diff, backup and replicate large FLAC libraries.",
 		Flags: []cli.Flag{
 			&cli.BoolFlag{
 				Name: "verbose",
@@ -30,13 +32,13 @@ func main() {
 			{
 				Name:      "index",
 				Action:    IndexAction,
-				Usage:     "recursively index all media in a directory",
+				Usage:     "Recursively indexes all media in one or more directories",
 				ArgsUsage: "<directory> [directory, ...]",
 			},
 			{
 				Name:      "diff",
 				Action:    DiffAction,
-				Usage:     "diff two indexes",
+				Usage:     "Diffs two indexes",
 				ArgsUsage: "<local index> <remote index>",
 				Arguments: []cli.Argument{
 					&cli.StringArg{
@@ -57,7 +59,7 @@ func main() {
 			{
 				Name:   "render",
 				Action: RenderAction,
-				Usage:  "render an HTML report of an index",
+				Usage:  "Renders an HTML report of an index",
 				Arguments: []cli.Argument{
 					&cli.StringArg{
 						Name: "index", // TODO: read from stdin otherwise
@@ -67,7 +69,7 @@ func main() {
 			{
 				Name:      "upload",
 				Action:    UploadAction,
-				Usage:     "upload files",
+				Usage:     "Uploads files in an index to a remote",
 				ArgsUsage: "[index]",
 				Arguments: []cli.Argument{
 					&cli.StringArg{
@@ -90,7 +92,7 @@ func main() {
 			},
 			{
 				Name:      "download",
-				Usage:     "download files",
+				Usage:     "Downloads files in an index from a remote",
 				Action:    DownloadAction,
 				ArgsUsage: "[index]",
 				Arguments: []cli.Argument{
