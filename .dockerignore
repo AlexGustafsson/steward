@@ -1,0 +1,7 @@
+/build
+/Steward
+/Steward.xcodeproj
+.dockerignore
+.gitignore
+project.yml
+README.md
