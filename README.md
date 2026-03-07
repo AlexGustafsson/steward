@@ -1,3 +1,7 @@
+<p align="center">
+  <img width="256px" src=".github/logo.png" alt="Logo">
+</p>
+
 # Steward
 
 Steward is a WIP all-in-one tool to index, diff, backup and replicate large FLAC
