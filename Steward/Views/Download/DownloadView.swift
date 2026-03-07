@@ -1,42 +1,57 @@
 import SwiftData
 import SwiftUI
+import os
+
+private let systemLogger = Logger(
+  subsystem: Bundle.main.bundleIdentifier!, category: "UI/DownloadView")
 
 struct DownloadView: View {
-  @State var indexTask: Task<[IndexEntry], Error>? = nil
-  @State var entries: [IndexEntry] = []
+  private enum DownloadViewState: Equatable {
+    case idle
+    case indexing(Task<[IndexEntry], Error>)  // Reused for filtering / diffing
+    case indexed
+    case downloading(Task<Void, Error>)
+    case success
+  }
 
-  @State var filterTask: Task<[IndexEntry], Error>? = nil
-  @State var downloadTask: Task<Void, Error>? = nil
+  private enum DownloadViewSheet: Hashable, Identifiable {
+    case indexProgress
+    case downloadProgress
+    case success
+    case error(String)
 
-  @State var outputURL: URL? = nil
+    var id: Self {
+      self
+    }
+  }
 
-  @State private var showDownloadProgressSheet: Bool = false
-  @State private var showCompletedSheet: Bool = false
-  @State private var showFailedSheet: Bool = false
-  @State private var showNonEmptyDirectory: Bool = false
+  @State private var state: DownloadViewState = .idle
+  @State private var sheet: DownloadViewSheet? = nil
 
+  @State private var entries: [IndexEntry] = []
   @State private var downloadProgress: StewardTool.DownloadProgress? = nil
 
   var body: some View {
-    if entries.count == 0 {
+    if self.state == .idle {
       SelectIndexView(title: "Drag and drop index to download") { url in
         do {
-          self.indexTask = try readIndex(from: url)
+          let task = try readIndex(from: url)
+          self.state = .indexing(task)
+          self.sheet = .indexProgress
           Task {
             do {
-              self.entries = try await self.indexTask!.value
+              self.entries = try await task.value
+              self.state = .indexed
+              self.sheet = nil
             } catch {
-              print(error)
+              systemLogger.error("Failed to index: \(error, privacy: .public)")
+              self.sheet = .error("Failed to index: \(error.localizedDescription)")
             }
-            self.indexTask = nil
           }
         } catch {
-          print(error)
+          systemLogger.error("Failed to index: \(error, privacy: .public)")
+          self.sheet = .error("Failed to index: \(error.localizedDescription)")
         }
-      }.sheet(isPresented: $showCompletedSheet) {
-        // TODO
-      } content: {
-        StatusCompleteView()
       }
     } else {
       ConfirmEntriesView(
@@ -57,40 +72,40 @@ struct DownloadView: View {
                 FileManager.default.enumerator(atPath: panel.url!.path(percentEncoded: false))?
                 .nextObject() == nil
               if !isEmpty {
-                showNonEmptyDirectory = true
+                self.sheet = .error(
+                  "Refusing to download to a non-empty directory. Select another directory or enable force."
+                )
                 return
               }
             }
 
-            self.downloadProgress = nil
-            self.showDownloadProgressSheet = true
-
             do {
-              // TODO: Progress reporting
-              self.downloadTask = try StewardTool.download(
+              self.downloadProgress = nil
+              let task = try StewardTool.download(
                 root: panel.url!, entries: self.entries, force: force
               ) { progress in
                 self.downloadProgress = progress
               }
+              self.state = .downloading(task)
+              self.sheet = .downloadProgress
               Task {
                 do {
-                  let _ = try await self.downloadTask?.value
-                  self.showCompletedSheet = true
-                  self.entries = []
+                  let _ = try await task.value
+                  self.state = .success
+                  self.sheet = .success
                 } catch {
-                  self.showFailedSheet = true
-                  print(error)
+                  systemLogger.error("Failed to download: \(error, privacy: .public)")
+                  self.sheet = .error("Failed to download: \(error.localizedDescription)")
                 }
-                self.downloadTask = nil
-                self.showDownloadProgressSheet = false
               }
             } catch {
-              print(error)
-              return
+              systemLogger.error("Failed to download: \(error, privacy: .public)")
+              self.sheet = .error("Failed to download: \(error.localizedDescription)")
             }
           } else {
             self.entries = []
-            self.showDownloadProgressSheet = false
+            self.state = .idle
+            self.sheet = nil
           }
         }
       ).toolbar {
@@ -103,40 +118,58 @@ struct DownloadView: View {
             panel.allowedContentTypes = [.json, .gzip]
             if panel.runModal() == .OK {
               do {
-                self.filterTask = try StewardTool.diff(local: panel.url!, remote: entries)
+                let task = try StewardTool.diff(local: panel.url!, remote: entries)
+                self.state = .indexing(task)
+                self.sheet = .indexProgress
                 Task {
                   do {
-                    self.entries = try await self.filterTask!.value
+                    self.entries = try await task.value
+                    self.state = .indexed
+                    self.sheet = nil
                   } catch {
-                    print(error)
+                    systemLogger.error("Failed to diff: \(error, privacy: .public)")
+                    self.sheet = .error("Failed to diff: \(error.localizedDescription)")
                   }
-                  self.filterTask = nil
                 }
               } catch {
-                print(error)
+                systemLogger.error("Failed to diff: \(error, privacy: .public)")
+                self.sheet = .error("Failed to diff: \(error.localizedDescription)")
               }
             }
           } label: {
             Image(systemName: "pencil.and.list.clipboard")
-          }
+          }.help(Text("Diff against local index"))
         }
-      }.sheet(isPresented: $showDownloadProgressSheet) {
-        self.downloadTask?.cancel()
-        self.downloadTask = nil
-      } content: {
-        StatusView(
-            progress: .known(self.downloadProgress?.processedEntries ?? 0, self.downloadProgress?.totalEntries ?? 0),
-          status: "Downloading")
-      }.sheet(isPresented: $showFailedSheet) {
-        self.showFailedSheet = false
-      } content: {
-        // LogTable(logs: logs).frame(width: 500, height: 400)
-      }.sheet(isPresented: $showNonEmptyDirectory) {
-        self.showNonEmptyDirectory = false
-      } content: {
-        Text(
-          "Refusing to download to a non-empty directory. Select another directory or enable force."
-        ).padding()
+      }.sheet(item: $sheet) {
+        switch state {
+        case .indexing(let task):
+          task.cancel()
+          self.state = .idle
+        case .downloading(let task):
+          task.cancel()
+          self.state = .indexed
+        case .success:
+          self.state = .idle
+          self.entries = []
+        default:
+          break
+        }
+        self.sheet = nil
+      } content: { sheet in
+        switch sheet {
+        case .indexProgress:
+          StatusView(progress: .unknown, status: "Indexing")
+        case .downloadProgress:
+          StatusView(
+            progress: .known(
+              self.downloadProgress?.processedEntries ?? 0, self.downloadProgress?.totalEntries ?? 0
+            ),
+            status: "Downloading")
+        case .success:
+          StatusCompleteView(text: "Download completed successfully.")
+        case .error(let error):
+          StatusFailedView(text: error)
+        }
       }
     }
   }

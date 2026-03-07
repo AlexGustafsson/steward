@@ -16,8 +16,10 @@ struct StatusView: View {
     VStack {
       switch progress {
       case .known(let current, let total):
-          ProgressView(value: total == 0 ? 0.0 : Double(current) / Double(total)).progressViewStyle(.circular).padding(20)
-          Text("\(current)/\(total)").foregroundStyle(.secondary)
+        ProgressView(value: total == 0 ? 0.0 : Double(current) / Double(total)).progressViewStyle(
+          .circular
+        ).padding(20)
+        Text("\(current)/\(total)").foregroundStyle(.secondary)
       case .unknown:
         ProgressView().padding(20)
       }
@@ -32,5 +34,5 @@ struct StatusView: View {
 }
 
 #Preview {
-    StatusView(progress: .known(1, 2), status: "Downloading")
+  StatusView(progress: .known(1, 2), status: "Downloading")
 }

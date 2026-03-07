@@ -1,99 +1,128 @@
 import SwiftData
 import SwiftUI
+import os
+
+private let systemLogger = Logger(
+  subsystem: Bundle.main.bundleIdentifier!, category: "UI/UploadView")
 
 struct UploadView: View {
+  private enum UploadViewState: Equatable {
+    case idle
+    case indexing(Task<[IndexEntry], Error>)  // Reused for filtering / diffing
+    case indexed
+    case uploading(Task<Void, Error>)
+    case success
+  }
+
+  private enum UploadViewSheet: Hashable, Identifiable {
+    case indexProgress
+    case uploadProgress
+    case success
+    case error(String)
+
+    var id: Self {
+      self
+    }
+  }
+
+  @State private var state: UploadViewState = .idle
+  @State private var sheet: UploadViewSheet? = nil
+
   @State private var url: URL? = nil
-  @State private var indexTask: Task<[IndexEntry], Error>? = nil
-  @State private var indexEntries: [IndexEntry] = []
-  @State private var showIndexProgressSheet: Bool = false
-
-  @State private var uploadTask: Task<Void, Error>? = nil
-  @State private var showUploadProgressSheet: Bool = false
-  @State private var showCompletedSheet: Bool = false
-  @State private var showFailedSheet: Bool = false
-
+  @State private var entries: [IndexEntry] = []
   @State private var uploadProgress: StewardTool.UploadProgress? = nil
-  @State private var uploadStatus: String = ""
 
   var body: some View {
-    if indexEntries.count == 0 {
+    if self.state == .idle {
       SelectFoldersView(title: "Drag and drop folder to upload", multi: false) { urls in
         let url = urls.first!
 
-        self.showIndexProgressSheet = true
-
         do {
-          self.indexTask = try StewardTool.index(roots: [url])
+          let task = try StewardTool.index(roots: [url])
+          self.state = .indexing(task)
+          self.sheet = .indexProgress
           Task {
             do {
+              self.entries = try await task.value
               self.url = url
-              self.indexEntries = try await self.indexTask!.value
+              self.state = .indexed
+              self.sheet = nil
             } catch {
-              print(error)
+              systemLogger.error("Failed to index: \(error, privacy: .public)")
+              self.sheet = .error("Failed to index: \(error.localizedDescription)")
             }
-            showIndexProgressSheet = false
-            self.indexTask = nil
           }
         } catch {
-          print(error)
-          return
+          systemLogger.error("Failed to index: \(error, privacy: .public)")
+          self.sheet = .error("Failed to index: \(error.localizedDescription)")
         }
-      }.sheet(isPresented: $showIndexProgressSheet) {
-        self.indexTask?.cancel()
-        self.indexTask = nil
-      } content: {
-        StatusView(progress: .unknown, status: "Indexing")
-      }.sheet(isPresented: $showCompletedSheet) {
-        // TODO
-      } content: {
-        StatusCompleteView()
       }
     } else {
       ConfirmEntriesView(
-        entries: $indexEntries, confirmLabel: "Upload",
+        entries: $entries, confirmLabel: "Upload",
         action: { confirmed, force in
           if confirmed {
-            self.uploadProgress = nil
-            self.showUploadProgressSheet = true
-
             do {
-              // TODO: Progress reporting
-              self.uploadTask = try StewardTool.upload(
-                root: url!, entries: indexEntries, force: force
+              self.uploadProgress = nil
+              let task = try StewardTool.upload(
+                root: self.url!, entries: self.entries, force: force
               ) { progress in
                 self.uploadProgress = progress
               }
+              self.state = .uploading(task)
+              self.sheet = .uploadProgress
               Task {
                 do {
-                  let _ = try await self.uploadTask?.value
-                  self.showCompletedSheet = true
-                  self.indexEntries = []
+                  let _ = try await task.value
+                  self.state = .success
+                  self.sheet = .success
                 } catch {
-                  self.showFailedSheet = true
-                  print(error)
+                  systemLogger.error("Failed to upload: \(error, privacy: .public)")
+                  self.sheet = .error("Failed to upload: \(error.localizedDescription)")
                 }
-                self.uploadTask = nil
-                self.showUploadProgressSheet = false
               }
             } catch {
-              print(error)
-              return
+              systemLogger.error("Failed to upload: \(error, privacy: .public)")
+              self.sheet = .error("Failed to upload: \(error.localizedDescription)")
             }
           } else {
-            self.indexEntries = []
-            self.showUploadProgressSheet = false
+            self.url = nil
+            self.entries = []
+            self.state = .idle
+            self.sheet = nil
           }
         }
-      ).sheet(isPresented: $showUploadProgressSheet) {
-        self.uploadTask?.cancel()
-        self.uploadTask = nil
-      } content: {
-        StatusView(
-          progress: .known(self.uploadProgress?.processedEntries ?? 0, self.uploadProgress?.totalEntries ?? 0), status: "Uploading")
-      }.sheet(isPresented: $showFailedSheet) {
-        self.showFailedSheet = false
-      } content: {
-        // LogTable(logs: logs).frame(width: 500, height: 400)
+      ).sheet(item: $sheet) {
+        switch state {
+        case .indexing(let task):
+          task.cancel()
+          self.state = .idle
+        case .uploading(let task):
+          task.cancel()
+          self.state = .indexed
+        case .success:
+          self.state = .idle
+          self.entries = []
+          self.url = nil
+        default:
+          break
+        }
+        self.sheet = nil
+      } content: { sheet in
+        switch sheet {
+        case .indexProgress:
+          StatusView(progress: .unknown, status: "Indexing")
+        case .uploadProgress:
+          StatusView(
+            progress: .known(
+              self.uploadProgress?.processedEntries ?? 0, self.uploadProgress?.totalEntries ?? 0
+            ),
+            status: "Uploading")
+        case .success:
+          StatusCompleteView(text: "Upload completed successfully.")
+        case .error(let error):
+          StatusFailedView(text: error)
+        }
       }
     }
   }

@@ -1,16 +1,17 @@
 import SwiftData
 import SwiftUI
 
-struct StatusCompleteView: View {
+struct StatusFailedView: View {
   @State var text: String
+
   @Environment(\.dismiss) private var dismiss
 
   var body: some View {
     VStack {
-      Image(systemName: "party.popper.fill").symbolRenderingMode(.hierarchical).font(.largeTitle)
-        .foregroundStyle(.blue.gradient).symbolEffect(.wiggle, options: .nonRepeating)
+      Image(systemName: "xmark.circle.fill").symbolRenderingMode(.hierarchical).font(.largeTitle)
+        .foregroundStyle(.red.gradient).symbolEffect(.wiggle, options: .nonRepeating)
       Spacer()
-      Text(text).foregroundStyle(.blue)
+      Text(text).foregroundStyle(.red)
     }.padding()
       .toolbar {
         ToolbarItem(placement: .cancellationAction) {
@@ -21,5 +22,5 @@ struct StatusCompleteView: View {
 }
 
 #Preview {
-  StatusCompleteView(text: "Success")
+  StatusFailedView(text: "Failure")
 }

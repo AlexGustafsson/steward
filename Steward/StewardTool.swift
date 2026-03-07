@@ -108,7 +108,7 @@ class StewardTool {
     func wait() async throws
   }
 
-  public struct DownloadProgress {
+  public struct DownloadProgress: Hashable {
     public var failures: UInt64
     public var successes: UInt64
     public var downloadedBytes: UInt64
