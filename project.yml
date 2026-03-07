@@ -1,6 +1,9 @@
 name: Steward
 options:
   bundleIdPrefix: com.github.alexgustafsson
+  fileTypes:
+    "icon":
+      file: true
 targets:
   Steward:
     type: application
