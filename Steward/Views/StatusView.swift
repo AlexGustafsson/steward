@@ -19,9 +19,10 @@ struct StatusView: View {
         ProgressView(value: total == 0 ? 0.0 : Double(current) / Double(total)).progressViewStyle(
           .circular
         ).padding(20)
-        Text("\(current)/\(total)").foregroundStyle(.secondary)
+        Text("\(status) \(current)/\(total)").foregroundStyle(.secondary)
       case .unknown:
         ProgressView().padding(20)
+        Text(status)
       }
     }
     .toolbar {

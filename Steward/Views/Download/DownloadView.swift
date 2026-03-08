@@ -8,7 +8,8 @@ private let systemLogger = Logger(
 struct DownloadView: View {
   private enum DownloadViewState: Equatable {
     case idle
-    case indexing(Task<[IndexEntry], Error>)  // Reused for filtering / diffing
+    case indexing(Task<[IndexEntry], Error>)
+    case filtering(Task<[IndexEntry], Error>)
     case indexed
     case downloading(Task<Void, Error>)
     case success
@@ -16,6 +17,7 @@ struct DownloadView: View {
 
   private enum DownloadViewSheet: Hashable, Identifiable {
     case indexProgress
+    case filterProgress
     case downloadProgress
     case success
     case error(String)
@@ -119,8 +121,8 @@ struct DownloadView: View {
             if panel.runModal() == .OK {
               do {
                 let task = try StewardTool.diff(local: panel.url!, remote: entries)
-                self.state = .indexing(task)
-                self.sheet = .indexProgress
+                self.state = .filtering(task)
+                self.sheet = .filterProgress
                 Task {
                   do {
                     self.entries = try await task.value
@@ -145,6 +147,9 @@ struct DownloadView: View {
         case .indexing(let task):
           task.cancel()
           self.state = .idle
+        case .filtering(let task):
+            task.cancel()
+            self.state = .indexed
         case .downloading(let task):
           task.cancel()
           self.state = .indexed
@@ -159,6 +164,8 @@ struct DownloadView: View {
         switch sheet {
         case .indexProgress:
           StatusView(progress: .unknown, status: "Indexing")
+        case .filterProgress:
+            StatusView(progress: .unknown, status: "Filtering")
         case .downloadProgress:
           StatusView(
             progress: .known(
