@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"io"
 	"io/fs"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"slices"
@@ -44,13 +45,15 @@ func IndexDir(name string, fn IndexDirFunc) error {
 
 		file, err := os.Open(path)
 		if err != nil {
-			return err
+			slog.Warn("Failed to index file", slog.Any("error", err), slog.String("name", file.Name()))
+			return nil
 		}
 		defer file.Close()
 
 		entry, err := IndexFile(path, file)
 		if err != nil {
-			return err
+			slog.Warn("Failed to index file", slog.Any("error", err), slog.String("name", file.Name()))
+			return nil
 		}
 
 		return fn(entry)
