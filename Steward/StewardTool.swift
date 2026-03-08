@@ -242,8 +242,8 @@ class StewardTool {
             systemLogger.debug("\(entry.msg, privacy: .public)")
           case "INFO":
             systemLogger.info("\(entry.msg, privacy: .public)")
-          case "WARNING":
-            systemLogger.warning("\(entry.msg, privacy: .public)")
+          case "WARN":
+            systemLogger.warning("\(entry.msg, privacy: .public): \(entry.error ?? "", privacy: .public)")
           case "ERROR":
             systemLogger.error(
               "\(entry.msg, privacy: .public): \(entry.error ?? "", privacy: .public)")
