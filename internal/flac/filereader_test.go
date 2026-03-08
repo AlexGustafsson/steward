@@ -14,6 +14,10 @@ import (
 )
 
 func TestDecoderDecode(t *testing.T) {
+	if testing.Short() {
+		t.Skip()
+	}
+
 	file, err := os.Open("testdata/test.flac")
 	require.NoError(t, err)
 	defer file.Close()
