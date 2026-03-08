@@ -13,6 +13,7 @@ import (
 	"strconv"
 	"strings"
 	"sync/atomic"
+	"time"
 
 	"github.com/AlexGustafsson/steward/internal/indexing"
 )
@@ -157,6 +158,12 @@ func (d *Downloader) Download(ctx context.Context, entry indexing.Entry) error {
 	actualDigest := "md5:" + hex.EncodeToString(md5sum.Sum(nil))
 	if actualDigest != expectedDigest {
 		logger.Warn("Downloaded file digest does not match remote")
+	}
+
+	err = d.local.Chtimes(name, time.Now(), entry.ModTime)
+	if err != nil {
+		logger.Warn("Failed to change modtime of downloaded file", slog.Any("error", err))
+		// Fallthrough
 	}
 
 	d.Successes.Add(1)
