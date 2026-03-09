@@ -10,14 +10,14 @@ struct UploadView: View {
     case idle
     case indexing(Task<[IndexEntry], Error>)  // Reused for filtering / diffing
     case indexed
-    case uploading(Task<Void, Error>)
-    case success
+    case uploading(Task<String, Error>)
+    case success(String)
   }
 
   private enum UploadViewSheet: Hashable, Identifiable {
     case indexProgress
     case uploadProgress
-    case success
+    case success(String)
     case error(String)
 
     var id: Self {
@@ -73,9 +73,9 @@ struct UploadView: View {
               self.sheet = .uploadProgress
               Task {
                 do {
-                  let _ = try await task.value
-                  self.state = .success
-                  self.sheet = .success
+                  let id = try await task.value
+                  self.state = .success(id)
+                  self.sheet = .success(id)
                 } catch {
                   systemLogger.error("Failed to upload: \(error, privacy: .public)")
                   self.sheet = .error("Failed to upload: \(error.localizedDescription)")
@@ -118,8 +118,13 @@ struct UploadView: View {
               self.uploadProgress?.processedEntries ?? 0, self.uploadProgress?.totalEntries ?? 0
             ),
             status: "Uploading")
-        case .success:
-          StatusCompleteView(text: "Upload completed successfully.")
+        case .success(let id):
+          StatusCompleteView {
+            VStack {
+              Text("Upload completed successfully. Your index id:").foregroundColor(.blue)
+              Text(id).font(.system(size: 14, design: .monospaced)).textSelection(.enabled)
+            }
+          }
         case .error(let error):
           StatusFailedView(text: error)
         }

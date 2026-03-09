@@ -1,14 +1,18 @@
 package storage
 
 import (
+	"bufio"
+	"compress/gzip"
 	"context"
 	"crypto/md5"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"log/slog"
 	"os"
+	"path"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -76,7 +80,7 @@ func (d *Downloader) Download(ctx context.Context, entry indexing.Entry) error {
 	logger := slog.With(slog.String("indexName", entry.Name), slog.String("audioDigest", entry.AudioDigest))
 
 	audioDigestAlgorithm, audioDigest, _ := strings.Cut(entry.AudioDigest, ":")
-	blobKey := filepath.Join("blobs", audioDigestAlgorithm, audioDigest)
+	blobKey := path.Join("blobs", audioDigestAlgorithm, audioDigest)
 
 	blobEntry, blobEntryExists := d.blobs[blobKey]
 	if !blobEntryExists {
@@ -245,4 +249,44 @@ func DefaultFileNameFunc(entry indexing.Entry) string {
 	path += ".flac"
 
 	return path
+}
+
+func DownloadIndex(ctx context.Context, remote BlobStorage, id string) ([]indexing.Entry, error) {
+	namespace, label, ok := strings.Cut(id, ":")
+	if !ok {
+		return nil, fmt.Errorf("invalid label")
+	}
+
+	blob, expectedDigest, err := remote.GetBlob(ctx, path.Join("index", namespace, label))
+	if err != nil {
+		return nil, err
+	}
+
+	gzipReader, err := gzip.NewReader(blob)
+	if err != nil {
+		return nil, err
+	}
+
+	entries := make([]indexing.Entry, 0)
+	md5 := md5.New()
+	scanner := bufio.NewScanner(io.TeeReader(gzipReader, md5))
+	for scanner.Scan() {
+		var entry indexing.Entry
+		if err := json.Unmarshal(scanner.Bytes(), &entry); err != nil {
+			return nil, fmt.Errorf("failed to parse index entry: %w", err)
+		}
+
+		entries = append(entries, entry)
+	}
+
+	if err := gzipReader.Close(); err != nil {
+		return nil, err
+	}
+
+	actualDigest := "md5:" + hex.EncodeToString(md5.Sum(nil))
+	if actualDigest != expectedDigest {
+		slog.Warn("Downloaded index digest does not match remote")
+	}
+
+	return entries, nil
 }

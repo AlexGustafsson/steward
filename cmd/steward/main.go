@@ -85,6 +85,9 @@ func main() {
 						Name:     "to",
 						Required: true,
 					},
+					&cli.StringFlag{
+						Name: "tag",
+					},
 					&cli.BoolFlag{
 						Name: "force",
 					},
@@ -111,6 +114,23 @@ func main() {
 					},
 					&cli.BoolFlag{
 						Name: "force",
+					},
+				},
+			},
+			{
+				Name:      "download-index",
+				Usage:     "Downloads an index by id",
+				Action:    DownloadIndexAction,
+				ArgsUsage: "<index id>",
+				Arguments: []cli.Argument{
+					&cli.StringArg{
+						Name: "index",
+					},
+				},
+				Flags: []cli.Flag{
+					&cli.StringFlag{
+						Name:     "from",
+						Required: true,
 					},
 				},
 			},

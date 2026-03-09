@@ -1,14 +1,19 @@
 package storage
 
 import (
+	"bytes"
+	"compress/gzip"
 	"context"
 	"crypto/md5"
 	"encoding/hex"
+	"encoding/json"
 	"io"
 	"log/slog"
 	"os"
+	"path"
 	"path/filepath"
 	"strings"
+	"sync"
 	"sync/atomic"
 
 	"github.com/AlexGustafsson/steward/internal/indexing"
@@ -23,6 +28,9 @@ type Uploader struct {
 	blobs  map[string]BlobInfo
 	remote BlobStorage
 	local  *os.Root
+
+	mutex             sync.Mutex
+	successfulEntries []indexing.Entry
 }
 
 func NewUploader(ctx context.Context, remote BlobStorage, basePath string) (*Uploader, error) {
@@ -52,7 +60,7 @@ func (u *Uploader) Upload(ctx context.Context, entry indexing.Entry, force bool)
 	}
 
 	audioDigestAlgorithm, audioDigest, _ := strings.Cut(entry.AudioDigest, ":")
-	blobKey := filepath.Join("blobs", audioDigestAlgorithm, audioDigest)
+	blobKey := path.Join("blobs", audioDigestAlgorithm, audioDigest)
 
 	blobEntry, blobEntryExists := u.blobs[blobKey]
 	if blobEntryExists {
@@ -61,6 +69,7 @@ func (u *Uploader) Upload(ctx context.Context, entry indexing.Entry, force bool)
 		} else {
 			logger.Debug("Remote already has matching blob name - skipping")
 			u.ProcessedBytes.Add(uint64(entry.Size))
+			u.successfulEntries = append(u.successfulEntries, entry)
 			return nil
 		}
 	} else {
@@ -94,6 +103,7 @@ func (u *Uploader) Upload(ctx context.Context, entry indexing.Entry, force bool)
 		logger.Debug("Remote blob matches local file - skipping upload")
 		file.Close()
 		u.ProcessedBytes.Add(uint64(entry.Size))
+		u.successfulEntries = append(u.successfulEntries, entry)
 		return nil
 	}
 
@@ -105,5 +115,49 @@ func (u *Uploader) Upload(ctx context.Context, entry indexing.Entry, force bool)
 	}
 
 	u.Successes.Add(1)
+	u.mutex.Lock()
+	defer u.mutex.Unlock()
+	u.successfulEntries = append(u.successfulEntries, entry)
 	return nil
+}
+
+func (u *Uploader) UploadIndex(ctx context.Context, label string) (string, error) {
+	u.mutex.Lock()
+	defer u.mutex.Unlock()
+
+	var buffer bytes.Buffer
+
+	md5 := md5.New()
+	gzipWriter := gzip.NewWriter(io.MultiWriter(&buffer, md5))
+	encoder := json.NewEncoder(gzipWriter)
+	for _, entry := range u.successfulEntries {
+		err := encoder.Encode(&entry)
+		if err != nil {
+			return "", err
+		}
+	}
+	if err := gzipWriter.Close(); err != nil {
+		return "", err
+	}
+
+	md5sum := hex.EncodeToString(md5.Sum(nil))
+
+	fileDigest := "md5:" + md5sum
+
+	// By default, the key is just the first few characters of the md5sum as the
+	// whole point of the indexes is to simplify for humans referencing to it
+	namespace := "md5"
+	id := md5sum[0:5]
+	if label != "" {
+		namespace = "_"
+		id = label
+	}
+	key := path.Join("index", namespace, id)
+
+	err := u.remote.PutBlob(ctx, key, &buffer, fileDigest, int64(buffer.Len()))
+	if err != nil {
+		return "", err
+	}
+
+	return namespace + ":" + id, nil
 }

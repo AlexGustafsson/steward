@@ -35,9 +35,15 @@ struct DownloadView: View {
 
   var body: some View {
     if self.state == .idle {
-      SelectIndexView(title: "Drag and drop index to download") { url in
+      SelectIndexView(title: "Drag and drop index to download") { reference in
         do {
-          let task = try readIndex(from: url)
+          let task: Task<[IndexEntry], Error>
+          switch reference {
+          case .url(let url):
+            task = try readIndex(from: url)
+          case .code(let code):
+            task = try StewardTool.downloadIndex(id: code)
+          }
           self.state = .indexing(task)
           self.sheet = .indexProgress
           Task {
@@ -148,8 +154,8 @@ struct DownloadView: View {
           task.cancel()
           self.state = .idle
         case .filtering(let task):
-            task.cancel()
-            self.state = .indexed
+          task.cancel()
+          self.state = .indexed
         case .downloading(let task):
           task.cancel()
           self.state = .indexed
@@ -165,7 +171,7 @@ struct DownloadView: View {
         case .indexProgress:
           StatusView(progress: .unknown, status: "Indexing")
         case .filterProgress:
-            StatusView(progress: .unknown, status: "Filtering")
+          StatusView(progress: .unknown, status: "Filtering")
         case .downloadProgress:
           StatusView(
             progress: .known(
@@ -173,7 +179,9 @@ struct DownloadView: View {
             ),
             status: "Downloading")
         case .success:
-          StatusCompleteView(text: "Download completed successfully.")
+          StatusCompleteView {
+            Text("Download completed successfully.").foregroundColor(.blue)
+          }
         case .error(let error):
           StatusFailedView(text: error)
         }
@@ -183,5 +191,5 @@ struct DownloadView: View {
 }
 
 #Preview {
-  UploadView()
+  DownloadView()
 }

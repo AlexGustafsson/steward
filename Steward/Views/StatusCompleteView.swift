@@ -1,16 +1,21 @@
 import SwiftData
 import SwiftUI
 
-struct StatusCompleteView: View {
-  @State var text: String
+struct StatusCompleteView<Content: View>: View {
+  @ViewBuilder let content: () -> Content
+
   @Environment(\.dismiss) private var dismiss
+
+  init(@ViewBuilder _ content: @escaping () -> Content) {
+    self.content = content
+  }
 
   var body: some View {
     VStack {
       Image(systemName: "party.popper.fill").symbolRenderingMode(.hierarchical).font(.largeTitle)
         .foregroundStyle(.blue.gradient).symbolEffect(.wiggle, options: .nonRepeating)
       Spacer()
-      Text(text).foregroundStyle(.blue)
+      content()
     }.padding()
       .toolbar {
         ToolbarItem(placement: .cancellationAction) {
@@ -21,5 +26,7 @@ struct StatusCompleteView: View {
 }
 
 #Preview {
-  StatusCompleteView(text: "Success")
+  StatusCompleteView {
+    Text("Success")
+  }
 }

@@ -5,6 +5,7 @@ import (
 	"compress/gzip"
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"log/slog"
 	"os"
@@ -133,7 +134,18 @@ func UploadAction(ctx context.Context, cmd *cli.Command) error {
 	wg.Wait()
 	ticker.Stop()
 
-	if uploader.Failures.Load() > 0 {
+	failed := uploader.Failures.Load() > 0
+
+	indexID, err := uploader.UploadIndex(ctx, cmd.String("tag"))
+	if err == nil {
+		slog.Info("Successfully uploaded index", slog.String("indexId", indexID))
+	} else {
+		slog.Warn("Failed to upload index", slog.Any("error", err))
+		failed = true
+		// Fallthrough
+	}
+
+	if failed {
 		slog.Error(
 			"Upload failed",
 			slog.Uint64("failures", uploader.Failures.Load()),
@@ -156,6 +168,7 @@ func UploadAction(ctx context.Context, cmd *cli.Command) error {
 			slog.Uint64("totalBytes", totalBytes),
 			slog.Uint64("processedEntries", processedEntries.Load()),
 		)
+		fmt.Println(indexID)
 	}
 
 	return nil

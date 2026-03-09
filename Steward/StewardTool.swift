@@ -103,6 +103,32 @@ class StewardTool {
     }
   }
 
+  private struct Buffer: Stdout {
+    private let pipe: Pipe
+    private let task: Task<[UInt8], Swift.Error>
+
+    init() {
+      let pipe = Pipe()
+
+      self.pipe = pipe
+      self.task = Task {
+        return try await pipe.fileHandleForReading.bytes.reduce(into: .init(), { $0.append($1) })
+      }
+    }
+
+    var file: File {
+      return .pipe(self.pipe)
+    }
+
+    func wait() async throws {
+      let _ = try await self.task.value
+    }
+
+    func values() async throws -> [UInt8] {
+      return try await self.task.value
+    }
+  }
+
   private protocol Stderr {
     var file: File { get }
     func wait() async throws
@@ -243,7 +269,8 @@ class StewardTool {
           case "INFO":
             systemLogger.info("\(entry.msg, privacy: .public)")
           case "WARN":
-            systemLogger.warning("\(entry.msg, privacy: .public): \(entry.error ?? "", privacy: .public)")
+            systemLogger.warning(
+              "\(entry.msg, privacy: .public): \(entry.error ?? "", privacy: .public)")
           case "ERROR":
             systemLogger.error(
               "\(entry.msg, privacy: .public): \(entry.error ?? "", privacy: .public)")
@@ -371,14 +398,15 @@ class StewardTool {
   public static func upload(
     root: URL, entries: [IndexEntry], force: Bool,
     _ onProgress: @MainActor @escaping (UploadProgress) -> Void
-  ) throws -> Task<Void, Swift.Error> {
+  ) throws -> Task<String, Swift.Error> {
     guard let credentials = try GetCredentials() else {
       throw Error.unexpectedError
     }
 
+    let stdout = StewardTool.Buffer()
     let logger = StewardTool.Logger(onDownloadProgress: nil, onUploadProgress: onProgress)
 
-    return try self.run(
+    let task = try self.run(
       environment: [
         "B2_REGION": credentials.region,
         "B2_KEY": credentials.key,
@@ -389,9 +417,15 @@ class StewardTool {
         credentials.bucket,
       ] + (force ? ["--force"] : []) + ["-"],
       stdin: StewardTool.Encoder(entries: entries),
-      stdout: nil,
+      stdout: stdout,
       stderr: logger,
     )
+
+    return Task {
+      let _ = try await task.value
+      return try await String(bytes: stdout.values(), encoding: .utf8)!.trimmingCharacters(
+        in: .whitespacesAndNewlines)
+    }
   }
 
   public static func diff(local: URL, remote: [IndexEntry])
@@ -405,6 +439,32 @@ class StewardTool {
         "/dev/stdin",
       ],
       stdin: StewardTool.Encoder(entries: remote),
+      stdout: stdout,
+      stderr: StewardTool.Logger(onDownloadProgress: nil, onUploadProgress: nil),
+    )
+
+    return Task {
+      let _ = try await task.value
+      return try await stdout.values()
+    }
+  }
+
+  public static func downloadIndex(id: String) throws -> (Task<[IndexEntry], Swift.Error>) {
+    guard let credentials = try GetCredentials() else {
+      throw Error.unexpectedError
+    }
+
+    let stdout = StewardTool.Decoder<IndexEntry>()
+    let task = try self.run(
+      environment: [
+        "B2_REGION": credentials.region,
+        "B2_KEY": credentials.key,
+        "B2_SECRET": credentials.secret,
+      ],
+      arguments: [
+        "--verbose", "download-index", "--from", credentials.bucket, id,
+      ],
+      stdin: nil,
       stdout: stdout,
       stderr: StewardTool.Logger(onDownloadProgress: nil, onUploadProgress: nil),
     )
