@@ -262,14 +262,14 @@ func DownloadIndex(ctx context.Context, remote BlobStorage, id string) ([]indexi
 		return nil, err
 	}
 
-	gzipReader, err := gzip.NewReader(blob)
+	md5 := md5.New()
+	gzipReader, err := gzip.NewReader(io.TeeReader(blob, md5))
 	if err != nil {
 		return nil, err
 	}
 
 	entries := make([]indexing.Entry, 0)
-	md5 := md5.New()
-	scanner := bufio.NewScanner(io.TeeReader(gzipReader, md5))
+	scanner := bufio.NewScanner(gzipReader)
 	for scanner.Scan() {
 		var entry indexing.Entry
 		if err := json.Unmarshal(scanner.Bytes(), &entry); err != nil {
