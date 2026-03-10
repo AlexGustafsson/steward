@@ -76,12 +76,10 @@ func DiffAction(ctx context.Context, cmd *cli.Command) error {
 	case "local-only":
 		for _, entry := range onlyLocal {
 			encoder.Encode(entry)
-			fmt.Println()
 		}
 	case "remote-only":
 		for _, entry := range onlyRemote {
 			encoder.Encode(entry)
-			fmt.Println()
 		}
 	case "diff":
 		panic("not implemented")
