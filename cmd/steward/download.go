@@ -125,7 +125,7 @@ func DownloadAction(ctx context.Context, cmd *cli.Command) error {
 	for _, entry := range entries {
 		name := storage.DefaultFileNameFunc(entry)
 		if _, ok := fileNames[name]; ok {
-			return fmt.Errorf("duplicate target files for path: %s", name)
+			return fmt.Errorf("duplicate target files for path: %s (%s)", name, entry.AudioDigest)
 		}
 
 		fileNames[name] = struct{}{}
