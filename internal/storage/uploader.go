@@ -121,7 +121,7 @@ func (u *Uploader) Upload(ctx context.Context, entry indexing.Entry, force bool)
 	return nil
 }
 
-func (u *Uploader) UploadIndex(ctx context.Context, label string) (string, error) {
+func (u *Uploader) UploadIndex(ctx context.Context, pathPrefix string, label string) (string, error) {
 	u.mutex.Lock()
 	defer u.mutex.Unlock()
 
@@ -131,6 +131,10 @@ func (u *Uploader) UploadIndex(ctx context.Context, label string) (string, error
 	gzipWriter := gzip.NewWriter(io.MultiWriter(&buffer, md5))
 	encoder := json.NewEncoder(gzipWriter)
 	for _, entry := range u.successfulEntries {
+		if pathPrefix != "" && !strings.HasPrefix(entry.Name, pathPrefix) {
+			continue
+		}
+
 		err := encoder.Encode(&entry)
 		if err != nil {
 			return "", err

@@ -76,6 +76,7 @@ func main() {
 						Name: "index",
 					},
 				},
+				DisableSliceFlagSeparator: true,
 				Flags: []cli.Flag{
 					&cli.StringFlag{
 						Name:     "from",
@@ -85,7 +86,7 @@ func main() {
 						Name:     "to",
 						Required: true,
 					},
-					&cli.StringFlag{
+					&cli.StringSliceFlag{
 						Name: "tag",
 					},
 					&cli.BoolFlag{

@@ -10,6 +10,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -136,13 +137,36 @@ func UploadAction(ctx context.Context, cmd *cli.Command) error {
 
 	failed := uploader.Failures.Load() > 0
 
-	indexID, err := uploader.UploadIndex(ctx, cmd.String("tag"))
-	if err == nil {
-		slog.Info("Successfully uploaded index", slog.String("indexId", indexID))
-	} else {
-		slog.Warn("Failed to upload index", slog.Any("error", err))
-		failed = true
-		// Fallthrough
+	if !failed {
+		tags := cmd.StringSlice("tag")
+		if len(tags) > 0 {
+			for _, tag := range tags {
+				pathPrefix := ""
+				if strings.Contains(tag, ":") {
+					pathPrefix, tag, _ = strings.Cut(tag, ":")
+				}
+
+				indexID, err := uploader.UploadIndex(ctx, pathPrefix, tag)
+				if err == nil {
+					slog.Info("Successfully uploaded index", slog.String("indexId", indexID))
+					fmt.Println(indexID)
+				} else {
+					slog.Warn("Failed to upload index", slog.Any("error", err))
+					failed = true
+					// Fallthrough
+				}
+			}
+		} else {
+			indexID, err := uploader.UploadIndex(ctx, "", "")
+			if err == nil {
+				slog.Info("Successfully uploaded index", slog.String("indexId", indexID))
+				fmt.Println(indexID)
+			} else {
+				slog.Warn("Failed to upload index", slog.Any("error", err))
+				failed = true
+				// Fallthrough
+			}
+		}
 	}
 
 	if failed {
@@ -168,7 +192,6 @@ func UploadAction(ctx context.Context, cmd *cli.Command) error {
 			slog.Uint64("totalBytes", totalBytes),
 			slog.Uint64("processedEntries", processedEntries.Load()),
 		)
-		fmt.Println(indexID)
 	}
 
 	return nil
