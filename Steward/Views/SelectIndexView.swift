@@ -74,7 +74,7 @@ struct SelectIndexView: View {
               showSheet = false
               action(.code(code))
               code = ""
-            }.keyboardShortcut(.defaultAction).disabled(!(code.hasPrefix("_/") || code.count == 9))
+            }.keyboardShortcut(.defaultAction).disabled(!(code.hasPrefix("_:") || code.count == 9))
           }.padding()
         }
       }
