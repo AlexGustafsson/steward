@@ -14,7 +14,7 @@ func bailOnDuplicates(entries []indexing.Entry) error {
 		identical := make([]string, 0)
 		for _, other := range entries {
 			if entry.AudioDigest == other.AudioDigest {
-				identical = append(identical, entry.Name)
+				identical = append(identical, other.Name)
 			}
 		}
 		if len(identical) > 1 {
