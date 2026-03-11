@@ -291,7 +291,6 @@ class StewardTool {
           default:
             break
           }
-
         }
       }
     }
@@ -440,7 +439,7 @@ class StewardTool {
       ],
       stdin: StewardTool.Encoder(entries: remote),
       stdout: stdout,
-      stderr: StewardTool.Logger(onDownloadProgress: nil, onUploadProgress: nil),
+      stderr: nil,  // StewardTool.Logger(onDownloadProgress: nil, onUploadProgress: nil),
     )
 
     return Task {
@@ -466,7 +465,8 @@ class StewardTool {
       ],
       stdin: nil,
       stdout: stdout,
-      stderr: StewardTool.Logger(onDownloadProgress: nil, onUploadProgress: nil),
+      // TODO: pipe backpressure deadlock if stderr is enabled
+      stderr: nil,  // StewardTool.Logger(onDownloadProgress: nil, onUploadProgress: nil),
     )
 
     return Task {
