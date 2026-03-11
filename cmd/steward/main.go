@@ -87,7 +87,8 @@ func main() {
 						Required: true,
 					},
 					&cli.StringSliceFlag{
-						Name: "tag",
+						Name:  "tag",
+						Usage: "Upload the index with a named tag. Can be specified more than once. Can tag by path by specifying <path>:<tag>",
 					},
 					&cli.BoolFlag{
 						Name: "force",
