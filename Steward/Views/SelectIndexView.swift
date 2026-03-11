@@ -72,9 +72,13 @@ struct SelectIndexView: View {
             }.keyboardShortcut(.cancelAction)
             Button("Submit") {
               showSheet = false
-              action(.code(code))
+              var x = code
+              if !x.contains(":") {
+                x = "_:" + x
+              }
+              action(.code(x))
               code = ""
-            }.keyboardShortcut(.defaultAction).disabled(!(code.hasPrefix("_:") || code.count == 9))
+            }.keyboardShortcut(.defaultAction)
           }.padding()
         }
       }
