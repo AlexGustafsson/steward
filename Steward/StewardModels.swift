@@ -12,6 +12,10 @@ struct IndexEntry: Identifiable, Codable {
     return self.name
   }
 
+  var sortKey: String {
+    return "\(self.artist ?? "")/\(self.album ?? "")/\(self.disc ?? "0")/\(self.track ?? "0")"
+  }
+
   var disc: String? {
     return self.getMetadata("DISCNUMBER")?.first
   }
