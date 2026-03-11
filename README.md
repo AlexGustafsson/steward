@@ -55,6 +55,41 @@ itself. As such it is not affected by changing the metadata of the file,
 changing its name or location. Only re-coding the audio should have an affect,
 which makes it great for identifying differences in metadata.
 
+## Troubleshooting
+
+### Duplicates
+
+As the index is mostly a flat structure, fully relying on the audio digest to be
+unique for some operations, duplicates in a library requires some care.
+
+For indexing or uploading a library, one does not need to worry about
+duplicates. But when diffing and subsequently downloading (parts of) a library,
+duplicates will make it impossible to know for sure what instance of the
+duplicate matches a song available locally.
+
+For this reason, Steward will complain about duplicates when diffing indexes and
+refuse to continue. When downloading, Steward would generate identical file
+names and refuse to continue. The recommended workaround is to create multiple
+indexes if required, separating duplicate songs or albums in different folders.
+
+```text
+.
+├── library 1
+│   ├── Uniquez
+│   │   └── Unique Songs 10
+│   │       └── Track 01.flac
+│   └─── Mr. Duplicate
+│        └── Best of Duplicate Songs
+│            └── Track 01.flac
+└── library 2
+    └── Mr. Duplicate
+        └── Best of Duplicate Songs
+            └── Track 01.flac
+```
+
+In this example, don't index the root directory, index library 1 and library 2
+separately.
+
 ## Name
 
 Musicbrainz' excellent GUI tool to work with annotating music files is called
