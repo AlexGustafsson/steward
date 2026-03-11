@@ -124,7 +124,6 @@ func DownloadAction(ctx context.Context, cmd *cli.Command) error {
 	fileNames := make(map[string]struct{})
 	for _, entry := range entries {
 		name := storage.DefaultFileNameFunc(entry)
-		slog.Error(name)
 		if _, ok := fileNames[name]; ok {
 			return fmt.Errorf("duplicate target files for path: %s", name)
 		}
