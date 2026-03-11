@@ -5,7 +5,7 @@ struct EntriesTable: View {
   @Binding public var entries: [IndexEntry]
 
   @State private var selection: Set<IndexEntry.ID> = []
-  @State private var sortOrder = [KeyPathComparator(\IndexEntry.id)]
+  @State private var sortOrder = [KeyPathComparator(\IndexEntry.sortKey)]
   @State private var columnCustomization: TableColumnCustomization<IndexEntry> = .init()
 
   func delete(_ id: IndexEntry.ID) {
@@ -20,6 +20,12 @@ struct EntriesTable: View {
         of: IndexEntry.self, selection: $selection, sortOrder: $sortOrder,
         columnCustomization: $columnCustomization
       ) {
+        TableColumn("Artist") { entry in
+          Text(entry.artist ?? "")
+        }.customizationID("artist")
+        TableColumn("Album") { entry in
+          Text(entry.album ?? "")
+        }.customizationID("album")
         TableColumn("Disc #") { entry in
           Text(entry.disc ?? "")
         }.width(50).customizationID("disc")
@@ -29,12 +35,6 @@ struct EntriesTable: View {
         TableColumn("Title") { entry in
           Text(entry.title ?? "")
         }.customizationID("title")
-        TableColumn("Album") { entry in
-          Text(entry.album ?? "")
-        }.customizationID("album")
-        TableColumn("Artist") { entry in
-          Text(entry.artist ?? "")
-        }.customizationID("artist")
         TableColumn("Composer") { entry in
           Text(entry.composer ?? "")
         }.customizationID("composer")
