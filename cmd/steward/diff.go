@@ -74,10 +74,12 @@ func DiffAction(ctx context.Context, cmd *cli.Command) error {
 	encoder := json.NewEncoder(os.Stdout)
 	switch cmd.String("output") {
 	case "local-only":
+		slices.SortFunc(onlyLocal, func(e1, e2 indexing.Entry) int { return strings.Compare(e1.Name, e2.Name) })
 		for _, entry := range onlyLocal {
 			encoder.Encode(entry)
 		}
 	case "remote-only":
+		slices.SortFunc(onlyRemote, func(e1, e2 indexing.Entry) int { return strings.Compare(e1.Name, e2.Name) })
 		for _, entry := range onlyRemote {
 			encoder.Encode(entry)
 		}
