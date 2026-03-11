@@ -17,7 +17,7 @@ struct IndexEntry: Identifiable, Codable {
   }
 
   var track: String? {
-    return self.getMetadata("TRACKNUMBER")?.joined(separator: ", ")
+    return self.getMetadata("TRACKNUMBER")?.first
   }
 
   var album: String? {
