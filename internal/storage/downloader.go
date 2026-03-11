@@ -14,6 +14,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"sync/atomic"
@@ -216,39 +217,39 @@ func DefaultFileNameFunc(entry indexing.Entry) string {
 		}
 	}
 
-	path := ""
+	// Path levels: Artist / Album / Track
+	level1 := make([]string, 0)
+	level2 := make([]string, 0)
+	level3 := make([]string, 0)
 
 	if len(albumArtists) > 0 {
-		path = strings.Join(albumArtists, " ")
+		level1 = append(level1, strings.Join(albumArtists, " "))
 	} else if artist != "" {
-		path = artist
+		level1 = append(level1, artist)
 	} else if len(artists) > 0 {
-		path = strings.Join(artists, " ")
+		level1 = append(level1, strings.Join(artists, " "))
 	}
 
 	if album != "" {
-		if path == "" {
-			path = album
-		} else {
-			path = filepath.Join(path, album)
-		}
+		level2 = append(level2, album)
 	}
 
-	path = filepath.Join(path, "Track ")
+	level3 = append(level3, "Track")
 
 	if trackNumber == "" {
-		path += entry.AudioDigest
+		level3 = append(level3, entry.AudioDigest)
 	} else {
-		path += trackNumber
+		level3 = append(level3, trackNumber)
 	}
 
-	if discTotal > 1 && discNumber != "" {
-		path += "(CD " + discNumber + ")"
+	if (discTotal > 1 && discNumber != "") || (discNumber != "" && discNumber != "1" && discNumber != "01") {
+		level3 = append(level3, "("+discNumber+")")
 	}
 
-	path += ".flac"
+	segments := []string{strings.Join(level1, " "), strings.Join(level2, " "), strings.Join(level3, " ")}
+	segments = slices.DeleteFunc(segments, func(s string) bool { return s == "" })
 
-	return path
+	return path.Join(segments...) + ".flac"
 }
 
 func DownloadIndex(ctx context.Context, remote BlobStorage, id string) ([]indexing.Entry, error) {
