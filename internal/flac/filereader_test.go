@@ -3,6 +3,7 @@ package flac
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -27,7 +28,7 @@ func TestDecoderDecode(t *testing.T) {
 
 	for {
 		r, metadataBlockType, err := reader.NextReader()
-		if err == io.EOF {
+		if errors.Is(err, io.EOF) {
 			break
 		}
 		require.NoError(t, err)
@@ -59,12 +60,10 @@ func TestDecoderDecode(t *testing.T) {
 			fmt.Println()
 		case 4:
 			fmt.Println("Vorbis comment")
-			comment, err := ReadVorbisComment(r)
+			meta, err := io.ReadAll(r)
 			require.NoError(t, err)
-			fmt.Printf("Vendor: %s", comment.VendorString)
-			for _, field := range comment.Fields {
-				fmt.Printf("%s\n", field)
-			}
+			xxd(meta)
+			fmt.Println()
 		case 5:
 			fmt.Println("Cuesheet")
 			meta, err := io.ReadAll(r)

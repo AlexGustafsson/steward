@@ -3,6 +3,7 @@ package indexing
 import (
 	"crypto/md5"
 	"encoding/hex"
+	"errors"
 	"io"
 	"io/fs"
 	"log/slog"
@@ -79,7 +80,7 @@ func IndexFile(name string, file *os.File) (Entry, error) {
 loop:
 	for {
 		r, metadataBlockType, err := reader.NextReader()
-		if err == io.EOF {
+		if errors.Is(err, io.EOF) {
 			break
 		} else if err != nil {
 			return Entry{}, err

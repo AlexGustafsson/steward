@@ -2,6 +2,7 @@ package flac
 
 import (
 	"bufio"
+	"errors"
 	"io"
 )
 
@@ -32,7 +33,7 @@ func NewFileReader(r io.Reader) (*FileReader, error) {
 func (r *FileReader) NextReader() (io.Reader, int, error) {
 	if r.expectMeta {
 		header, err := r.reader.Peek(4)
-		if err == io.EOF {
+		if errors.Is(err, io.EOF) {
 			return nil, -1, io.ErrUnexpectedEOF
 		} else if err != nil {
 			return nil, -1, err
