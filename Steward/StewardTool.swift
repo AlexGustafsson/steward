@@ -351,18 +351,25 @@ class StewardTool {
     }
 
     try process.run()
-
     return Task {
-      try await stdin?.wait()
+      try await withTaskCancellationHandler {
+        try await stdin?.wait()
 
-      process.waitUntilExit()
+        try Task.checkCancellation()
+        process.waitUntilExit()
 
-      try await stdout?.wait()
+        try Task.checkCancellation()
+        try await stdout?.wait()
 
-      try await stderr?.wait()
+        try Task.checkCancellation()
+        try await stderr?.wait()
 
-      if process.terminationStatus != 0 {
-        throw StewardTool.Error.unexpectedError
+        if process.terminationStatus != 0 {
+          throw StewardTool.Error.unexpectedError
+        }
+      } onCancel: {
+        systemLogger.warning("StewardTool call was canceled")
+        process.terminate()
       }
     }
   }
@@ -389,8 +396,12 @@ class StewardTool {
     )
 
     return Task {
-      let _ = try await task.value
-      return try await stdout.values()
+      try await withTaskCancellationHandler {
+        let _ = try await task.value
+        return try await stdout.values()
+      } onCancel: {
+        task.cancel()
+      }
     }
   }
 
@@ -421,9 +432,13 @@ class StewardTool {
     )
 
     return Task {
-      let _ = try await task.value
-      return try await String(bytes: stdout.values(), encoding: .utf8)!.trimmingCharacters(
-        in: .whitespacesAndNewlines)
+      try await withTaskCancellationHandler {
+        let _ = try await task.value
+        return try await String(bytes: stdout.values(), encoding: .utf8)!.trimmingCharacters(
+          in: .whitespacesAndNewlines)
+      } onCancel: {
+        task.cancel()
+      }
     }
   }
 
@@ -443,8 +458,12 @@ class StewardTool {
     )
 
     return Task {
-      let _ = try await task.value
-      return try await stdout.values().sorted(using: KeyPathComparator(\IndexEntry.sortKey))
+      try await withTaskCancellationHandler {
+        let _ = try await task.value
+        return try await stdout.values().sorted(using: KeyPathComparator(\IndexEntry.sortKey))
+      } onCancel: {
+        task.cancel()
+      }
     }
   }
 
@@ -470,8 +489,12 @@ class StewardTool {
     )
 
     return Task {
-      let _ = try await task.value
-      return try await stdout.values().sorted(using: KeyPathComparator(\IndexEntry.sortKey))
+      try await withTaskCancellationHandler {
+        let _ = try await task.value
+        return try await stdout.values().sorted(using: KeyPathComparator(\IndexEntry.sortKey))
+      } onCancel: {
+        task.cancel()
+      }
     }
   }
 
