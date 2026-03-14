@@ -444,7 +444,7 @@ class StewardTool {
 
     return Task {
       let _ = try await task.value
-      return try await stdout.values()
+      return try await stdout.values().sorted(using: KeyPathComparator(\IndexEntry.sortKey))
     }
   }
 
@@ -471,7 +471,7 @@ class StewardTool {
 
     return Task {
       let _ = try await task.value
-      return try await stdout.values()
+      return try await stdout.values().sorted(using: KeyPathComparator(\IndexEntry.sortKey))
     }
   }
 
@@ -515,6 +515,6 @@ func readIndex(from url: URL) throws -> Task<[IndexEntry], Error> {
       entries.append(entry)
     }
 
-    return entries
+    return entries.sorted(using: KeyPathComparator(\IndexEntry.sortKey))
   }
 }
