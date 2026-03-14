@@ -79,7 +79,7 @@ func (s *S3Storage) GetBlobs(ctx context.Context) (map[string]BlobInfo, error) {
 	return blobs, nil
 }
 
-func (s *S3Storage) PutBlob(ctx context.Context, key string, r io.Reader, digest string, size int64) error {
+func (s *S3Storage) PutBlob(ctx context.Context, key string, r ReadAtSeeker, digest string, size int64) error {
 	algorithm, digest, ok := strings.Cut(digest, ":")
 	if !ok {
 		return fmt.Errorf("invalid digest")

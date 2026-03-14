@@ -8,6 +8,11 @@ import (
 	"time"
 )
 
+type ReadAtSeeker interface {
+	io.ReadSeeker
+	io.ReaderAt
+}
+
 type BlobInfo struct {
 	Digest       string
 	LastModified time.Time
@@ -16,7 +21,7 @@ type BlobInfo struct {
 
 type BlobStorage interface {
 	GetBlobs(ctx context.Context) (map[string]BlobInfo, error)
-	PutBlob(ctx context.Context, key string, r io.Reader, digest string, size int64) error
+	PutBlob(ctx context.Context, key string, r ReadAtSeeker, digest string, size int64) error
 	GetBlob(ctx context.Context, key string) (io.ReadCloser, string, error)
 }
 

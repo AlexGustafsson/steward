@@ -107,7 +107,7 @@ func (u *Uploader) Upload(ctx context.Context, entry indexing.Entry, force bool)
 		return nil
 	}
 
-	err = u.remote.PutBlob(ctx, blobKey, newStatsReader(file, &u.UploadedBytes), fileDigest, fileSize)
+	err = u.remote.PutBlob(ctx, blobKey, newStatsReaderAtSeeker(file, &u.UploadedBytes), fileDigest, fileSize)
 	u.ProcessedBytes.Add(uint64(entry.Size))
 	if err != nil {
 		u.Failures.Add(1)
@@ -158,7 +158,7 @@ func (u *Uploader) UploadIndex(ctx context.Context, pathPrefix string, label str
 	}
 	key := path.Join("index", namespace, id)
 
-	err := u.remote.PutBlob(ctx, key, &buffer, fileDigest, int64(buffer.Len()))
+	err := u.remote.PutBlob(ctx, key, bytes.NewReader(buffer.Bytes()), fileDigest, int64(buffer.Len()))
 	if err != nil {
 		return "", err
 	}
