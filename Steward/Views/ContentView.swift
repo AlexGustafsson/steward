@@ -24,6 +24,10 @@ struct ContentView: View {
         Label("Index", systemImage: "list.bullet").foregroundColor(
           inProgress ? .secondary : .primary)
       }.tag("index")
+      ViewIndexView().tabItem {
+        Label("Show index", systemImage: "list.bullet").foregroundColor(
+          inProgress ? .secondary : .primary)
+      }.tag("showIndex")
       UploadView().tabItem {
         Label("Upload", systemImage: "list.bullet").foregroundColor(
           inProgress ? .secondary : .primary)
