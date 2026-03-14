@@ -90,6 +90,10 @@ indexes if required, separating duplicate songs or albums in different folders.
 In this example, don't index the root directory, index library 1 and library 2
 separately.
 
+Note also, that when force uploading content, duplicates might get re-uploaded
+as although the remote audio digest might match all duplicates, the file digest
+can differ between them, leading to re-uploads.
+
 ## Name
 
 Musicbrainz' excellent GUI tool to work with annotating music files is called
