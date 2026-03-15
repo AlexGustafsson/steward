@@ -35,6 +35,11 @@ struct ContentView: View {
         } label: {
           Label("Show index", systemImage: "waveform.path.ecg.text.page")
         }
+        NavigationLink {
+          ViewIndexDuplicatesView()
+        } label: {
+          Label("Find duplicates", systemImage: "document.on.document")
+        }
       }
     } detail: {
       Text("Default home")
