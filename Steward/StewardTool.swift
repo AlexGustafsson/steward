@@ -27,12 +27,21 @@ class StewardTool {
 
       self.pipe = pipe
       self.task = Task {
-        for entry in entries {
-          let line = try encoder.encode(entry)
-          try pipe.fileHandleForWriting.write(contentsOf: line)
-          try pipe.fileHandleForWriting.write(contentsOf: "\n".data(using: .utf8)!)
+        try await withCheckedThrowingContinuation { continuation in
+          DispatchQueue.global().async {
+            do {
+              for entry in entries {
+                let line = try encoder.encode(entry)
+                try pipe.fileHandleForWriting.write(contentsOf: line)
+                try pipe.fileHandleForWriting.write(contentsOf: "\n".data(using: .utf8)!)
+              }
+              try? pipe.fileHandleForWriting.close()
+              continuation.resume()
+            } catch {
+              continuation.resume(throwing: error)
+            }
+          }
         }
-        try? pipe.fileHandleForWriting.close()
       }
     }
 
