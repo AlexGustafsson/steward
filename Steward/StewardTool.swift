@@ -359,7 +359,19 @@ class StewardTool {
     }
 
     try process.run()
+
+    var timer: Timer? = nil
+    if let statusInterval = statusInterval {
+      timer = Timer.scheduledTimer(withTimeInterval: statusInterval, repeats: true) { _ in
+        kill(process.processIdentifier, SIGINFO)
+      }
+    }
+
     return Task {
+      defer {
+        timer?.invalidate()
+      }
+
       try await withTaskCancellationHandler {
         try await stdin?.wait()
 
@@ -445,6 +457,7 @@ class StewardTool {
       stdin: StewardTool.Encoder(entries: entries),
       stdout: stdout,
       stderr: logger,
+      statusInterval: 5.0,
     )
 
     return Task {
@@ -536,6 +549,7 @@ class StewardTool {
       stdin: StewardTool.Encoder(entries: entries),
       stdout: nil,
       stderr: logger,
+      statusInterval: 5.0,
     )
   }
 }

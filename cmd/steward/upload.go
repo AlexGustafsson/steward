@@ -9,11 +9,12 @@ import (
 	"io"
 	"log/slog"
 	"os"
+	"os/signal"
 	"path/filepath"
 	"strings"
 	"sync"
 	"sync/atomic"
-	"time"
+	"syscall"
 
 	"github.com/AlexGustafsson/steward/internal/indexing"
 	"github.com/AlexGustafsson/steward/internal/storage"
@@ -71,11 +72,12 @@ func UploadAction(ctx context.Context, cmd *cli.Command) error {
 
 	var wg sync.WaitGroup
 
-	ticker := time.NewTicker(1 * time.Second)
 	go func() {
-		for range ticker.C {
-			slog.Debug(
-				"Upload in progress",
+		signals := make(chan os.Signal, 1)
+		signal.Notify(signals, syscall.SIGINFO)
+		for range signals {
+			slog.Info(
+				"Upload status",
 				slog.Uint64("failures", uploader.Failures.Load()),
 				slog.Uint64("successes", uploader.Successes.Load()),
 				slog.Uint64("uploadedBytes", uploader.UploadedBytes.Load()),
@@ -133,7 +135,6 @@ func UploadAction(ctx context.Context, cmd *cli.Command) error {
 	close(entriesCh)
 
 	wg.Wait()
-	ticker.Stop()
 
 	failed := uploader.Failures.Load() > 0
 

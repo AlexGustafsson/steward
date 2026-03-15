@@ -9,10 +9,11 @@ import (
 	"io"
 	"log/slog"
 	"os"
+	"os/signal"
 	"path/filepath"
 	"sync"
 	"sync/atomic"
-	"time"
+	"syscall"
 
 	"github.com/AlexGustafsson/steward/internal/indexing"
 	"github.com/AlexGustafsson/steward/internal/storage"
@@ -72,11 +73,12 @@ func DownloadAction(ctx context.Context, cmd *cli.Command) error {
 
 	var wg sync.WaitGroup
 
-	ticker := time.NewTicker(1 * time.Second)
 	go func() {
-		for range ticker.C {
-			slog.Debug(
-				"Download in progress",
+		signals := make(chan os.Signal, 1)
+		signal.Notify(signals, syscall.SIGINFO)
+		for range signals {
+			slog.Info(
+				"Download status",
 				slog.Uint64("failures", downloader.Failures.Load()),
 				slog.Uint64("successes", downloader.Successes.Load()),
 				slog.Uint64("downloadedBytes", downloader.DownloadedBytes.Load()),
@@ -137,7 +139,6 @@ func DownloadAction(ctx context.Context, cmd *cli.Command) error {
 	close(entriesCh)
 
 	wg.Wait()
-	ticker.Stop()
 
 	if downloader.Failures.Load() > 0 {
 		slog.Error(
