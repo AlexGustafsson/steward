@@ -16,10 +16,21 @@ struct StatusView: View {
     VStack {
       switch progress {
       case .known(let success, let fail, let total):
-        ProgressView(value: total == 0 ? 0.0 : Double(success + fail) / Double(total))
-          .progressViewStyle(
-            .circular
-          ).padding(20)
+        ZStack {
+          Circle()
+            .trim(
+              from: Double(fail) / Double(total),
+              to: total > 0 ? Double(success + fail) / Double(total) : 0.0
+            )
+            .rotation(.degrees(-90))
+            .stroke(.tint, style: StrokeStyle(lineWidth: 5, lineCap: .butt))
+            .frame(width: 26, height: 26)
+          Circle()
+            .trim(from: 0.0, to: total > 0 ? Double(fail) / Double(total) : 0.0)
+            .rotation(.degrees(-90))
+            .stroke(.tint, style: StrokeStyle(lineWidth: 5, lineCap: .butt))
+            .frame(width: 26, height: 26).tint(.red)
+        }.padding(20)
         Text("\(status) \(success+fail)/\(total)").foregroundStyle(.secondary)
       case .unknown:
         ProgressView().padding(20)
