@@ -1,6 +1,15 @@
 import Foundation
 
-struct IndexEntry: Identifiable, Codable {
+struct MetadataKeyValue: Identifiable, Equatable {
+  public var key: String
+  public var value: String
+
+  var id: String {
+    return self.key + ":" + self.value
+  }
+}
+
+struct IndexEntry: Identifiable, Equatable, Codable {
   public var name: String
   public var modTime: Date
   public var size: Int64
@@ -32,12 +41,27 @@ struct IndexEntry: Identifiable, Codable {
     return self.getMetadata("ARTIST")?.first ?? self.getMetadata("ARTISTS")?.joined(separator: ", ")
   }
 
+  var albumArtist: String? {
+    return self.getMetadata("ALBUMARTIST")?.joined(separator: ", ")
+  }
+
   var composer: String? {
     return self.getMetadata("COMPOSER")?.joined(separator: ", ")
   }
 
   var title: String? {
     return self.getMetadata("TITLE")?.first
+  }
+
+  var metadataKeyValue: [MetadataKeyValue] {
+    return self.metadata
+      .enumerated()
+      .map({
+        let before = $0.element.index(before: ($0.element.firstIndex(of: "=")!))
+        let after = $0.element.index(after: ($0.element.firstIndex(of: "=")!))
+        return MetadataKeyValue(
+          key: String($0.element[...before]), value: String($0.element[after...]))
+      })
   }
 
   func getMetadata(_ key: String) -> [String]? {

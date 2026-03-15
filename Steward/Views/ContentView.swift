@@ -10,32 +10,34 @@ struct ContentView: View {
   @State private var credentialsExist = try? CredentialsExist()
 
   var body: some View {
-    TabView(
-      selection: Binding(
-        get: { selection },
-        set: { newValue in
-          if !inProgress {
-            selection = newValue
-          }
+    NavigationSplitView {
+      List {
+        NavigationLink {
+          UploadView()
+        } label: {
+          Label("Upload", systemImage: "arrow.up.circle")
         }
-      )
-    ) {
-      IndexView().tabItem {
-        Label("Index", systemImage: "list.bullet").foregroundColor(
-          inProgress ? .secondary : .primary)
-      }.tag("index")
-      ViewIndexView().tabItem {
-        Label("Show index", systemImage: "list.bullet").foregroundColor(
-          inProgress ? .secondary : .primary)
-      }.tag("showIndex")
-      UploadView().tabItem {
-        Label("Upload", systemImage: "list.bullet").foregroundColor(
-          inProgress ? .secondary : .primary)
-      }.tag("upload").disabled(credentialsExist != true)
-      DownloadView().tabItem {
-        Label("Download", systemImage: "list.bullet").foregroundColor(
-          inProgress ? .secondary : .primary)
-      }.tag("download").disabled(credentialsExist != true)
+
+        NavigationLink {
+          DownloadView()
+        } label: {
+          Label("Download", systemImage: "arrow.down.circle")
+        }
+
+        Text("Indexing").font(.subheadline)
+        NavigationLink {
+          IndexView()
+        } label: {
+          Label("Index", systemImage: "waveform.badge.magnifyingglass")
+        }
+        NavigationLink {
+          ViewIndexView()
+        } label: {
+          Label("Show index", systemImage: "waveform.path.ecg.text.page")
+        }
+      }
+    } detail: {
+      Text("Default home")
     }
   }
 }

@@ -8,6 +8,8 @@ struct EntriesTable: View {
   @State private var sortOrder = [KeyPathComparator(\IndexEntry.sortKey)]
   @State private var columnCustomization: TableColumnCustomization<IndexEntry> = .init()
 
+  @State private var isInspectorPresented = true
+
   func delete(_ id: IndexEntry.ID) {
     if let index = entries.firstIndex(where: { $0.id == id }) {
       entries.remove(at: index)
@@ -35,9 +37,6 @@ struct EntriesTable: View {
         TableColumn("Title") { entry in
           Text(entry.title ?? "")
         }.customizationID("title")
-        TableColumn("Composer") { entry in
-          Text(entry.composer ?? "")
-        }.customizationID("composer")
       } rows: {
         ForEach(entries) { entry in
           TableRow(entry)
@@ -61,7 +60,18 @@ struct EntriesTable: View {
           delete(entry)
         }
         selection.removeAll()
-      })
+      }).inspector(isPresented: $isInspectorPresented) {
+        IndexEntryInspectorForm(entries: entries, selection: selection)
+          .inspectorColumnWidth(
+            min: 300, ideal: 400, max: 500
+          ).toolbar {
+            Button {
+              isInspectorPresented.toggle()
+            } label: {
+              Label("Toggle Inspector", systemImage: "info.circle")
+            }
+          }
+      }
     }
   }
 }

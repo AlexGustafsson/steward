@@ -117,7 +117,7 @@ struct DownloadView: View {
           }
         }
       ).toolbar {
-        ToolbarItem(placement: .cancellationAction) {
+        ToolbarItem {
           Button {
             let panel = NSOpenPanel()
             panel.allowsMultipleSelection = false
