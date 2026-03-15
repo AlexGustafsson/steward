@@ -19,7 +19,7 @@ func SetCredentials(_ credentials: Credentials) throws {
 
   let query: [String: Any] = [
     kSecClass as String: kSecClassGenericPassword,
-    kSecAttrAccount as String: "blobstorage2",
+    kSecAttrAccount as String: "blobstorage",
     kSecAttrService as String: "Steward",
     kSecValueData as String: data,
   ]
@@ -47,7 +47,7 @@ func SetCredentials(_ credentials: Credentials) throws {
 func CredentialsExist() throws -> Bool {
   let query: [String: Any] = [
     kSecClass as String: kSecClassGenericPassword,
-    kSecAttrAccount as String: "blobstorage2",
+    kSecAttrAccount as String: "blobstorage",
     kSecAttrService as String: "Steward",
     kSecReturnData as String: false,
   ]
@@ -66,7 +66,7 @@ func CredentialsExist() throws -> Bool {
 func GetCredentials() throws -> Credentials? {
   let query: [String: Any] = [
     kSecClass as String: kSecClassGenericPassword,
-    kSecAttrAccount as String: "blobstorage2",
+    kSecAttrAccount as String: "blobstorage",
     kSecAttrService as String: "Steward",
     kSecReturnData as String: true,
     kSecMatchLimit as String: kSecMatchLimitOne,
