@@ -63,10 +63,8 @@ class StewardTool {
       self.pipe = pipe
       self.task = Task {
         var entries = [T]()
-        for try await line in pipe.fileHandleForReading.bytes.lines {
-          let line = line.data(using: .utf8)!
-          let entry = try decoder.decode(T.self, from: line)
-          entries.append(entry)
+        try await pipe.readLines { line in
+          entries.append(try decoder.decode(T.self, from: line))
         }
         return entries
       }
@@ -112,7 +110,10 @@ class StewardTool {
 
       self.pipe = pipe
       self.task = Task {
-        return try await pipe.fileHandleForReading.bytes.reduce(into: .init(), { $0.append($1) })
+        try await withCheckedThrowingContinuation{ continuation in
+          let data = pipe.fileHandleForReading.readDataToEndOfFile()
+          continuation.resume(returning: [UInt8](data))
+        }
       }
     }
 
@@ -258,8 +259,7 @@ class StewardTool {
 
       self.pipe = pipe
       self.task = Task {
-        for try await line in pipe.fileHandleForReading.bytes.lines {
-          let line = line.data(using: .utf8)!
+        try await pipe.readLines { line in
           let entry = try decoder.decode(LogEntry.self, from: line)
 
           // Log the line
@@ -282,11 +282,19 @@ class StewardTool {
           switch entry.msg {
           case "Upload in progress":
             if let entry = UploadProgress(fromEntry: entry) {
-              await onUploadProgress?(entry)
+              if let onUploadProgress {
+                Task { @MainActor in
+                  onUploadProgress(entry)
+                }
+              }
             }
           case "Download in progress":
             if let entry = DownloadProgress(fromEntry: entry) {
-              await onDownloadProgress?(entry)
+              if let onDownloadProgress {
+                Task { @MainActor in
+                  onDownloadProgress(entry)
+                }
+              }
             }
           default:
             break
@@ -355,14 +363,22 @@ class StewardTool {
       try await withTaskCancellationHandler {
         try await stdin?.wait()
 
+        // Wait for the process to exit on a GCD thread to avoid blocking
+        // Swift's cooperative thread pool
         try Task.checkCancellation()
-        process.waitUntilExit()
+        await withCheckedContinuation { continuation in
+          DispatchQueue.global().async {
+            process.waitUntilExit()
+            continuation.resume()
+          }
+        }
 
+        // Wait for both streams to exit in parallel
         try Task.checkCancellation()
-        try await stdout?.wait()
-
-        try Task.checkCancellation()
-        try await stderr?.wait()
+        async let stdoutResult: Void = stdout?.wait() ?? ()
+        async let stderrResult: Void = stderr?.wait() ?? ()
+        try await stdoutResult
+        try await stderrResult
 
         if process.terminationStatus != 0 {
           throw StewardTool.Error.unexpectedError
@@ -454,7 +470,7 @@ class StewardTool {
       ],
       stdin: StewardTool.Encoder(entries: remote),
       stdout: stdout,
-      stderr: nil,  // StewardTool.Logger(onDownloadProgress: nil, onUploadProgress: nil),
+      stderr: StewardTool.Logger(onDownloadProgress: nil, onUploadProgress: nil),
     )
 
     return Task {
@@ -484,8 +500,7 @@ class StewardTool {
       ],
       stdin: nil,
       stdout: stdout,
-      // TODO: pipe backpressure deadlock if stderr is enabled
-      stderr: nil,  // StewardTool.Logger(onDownloadProgress: nil, onUploadProgress: nil),
+      stderr: StewardTool.Logger(onDownloadProgress: nil, onUploadProgress: nil),
     )
 
     return Task {
