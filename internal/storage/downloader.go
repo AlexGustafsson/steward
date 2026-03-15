@@ -154,11 +154,7 @@ func (d *Downloader) Download(ctx context.Context, entry indexing.Entry) error {
 
 	md5sum := md5.New()
 
-	// TODO: We're replacing the Vorbis comments of the file, with those from the
-	// index, but as the index is sorted, which is not required by the file, the
-	// resulting digest is likely to differ even though the files are technically
-	// identical. This sort of breaks the force mode, which would always force
-	n, err := flac.Copy(io.MultiWriter(file, md5sum), newStatsReader(blob, &d.DownloadedBytes), entry.Metadata)
+	n, err := flac.Copy(file, newStatsReader(io.TeeReader(blob, md5sum), &d.DownloadedBytes), entry.Metadata)
 	d.ProcessedBytes.Add(uint64(n))
 	if err != nil {
 		d.Failures.Add(1)
