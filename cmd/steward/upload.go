@@ -89,7 +89,7 @@ func UploadAction(ctx context.Context, cmd *cli.Command) error {
 		}
 	}()
 
-	for range 10 {
+	for range cmd.Int("parallelism") {
 		wg.Go(func() {
 			for entry := range entriesCh {
 				logger := slog.With(slog.String("indexName", entry.Name), slog.String("audioDigest", entry.AudioDigest))

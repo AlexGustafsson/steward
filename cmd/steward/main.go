@@ -93,6 +93,11 @@ func main() {
 					&cli.BoolFlag{
 						Name: "force",
 					},
+					&cli.IntFlag{
+						Name:  "parallelism",
+						Usage: "Number of parallel uploads. Keep low if all files are on the same disk or if using fast storage",
+						Value: 3,
+					},
 				},
 			},
 			{
@@ -116,6 +121,11 @@ func main() {
 					},
 					&cli.BoolFlag{
 						Name: "force",
+					},
+					&cli.IntFlag{
+						Name:  "parallelism",
+						Usage: "Number of parallel downloads. Keep low if all files are on the same disk or if using fast storage",
+						Value: 3,
 					},
 				},
 			},

@@ -90,7 +90,7 @@ func DownloadAction(ctx context.Context, cmd *cli.Command) error {
 		}
 	}()
 
-	for range 10 {
+	for range cmd.Int("parallelism") {
 		wg.Go(func() {
 			// NOTE: Assumes that all entries are interesting, whereas when uploading,
 			// files are diffed and ignored if they already exist remotely. So index
