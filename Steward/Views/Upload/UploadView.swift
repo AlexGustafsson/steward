@@ -115,7 +115,8 @@ struct UploadView: View {
         case .uploadProgress:
           StatusView(
             progress: .known(
-              self.uploadProgress?.processedEntries ?? 0, self.uploadProgress?.totalEntries ?? 0
+              self.uploadProgress?.successes ?? 0, self.uploadProgress?.failures ?? 0,
+              self.uploadProgress?.total ?? 0
             ),
             status: "Uploading")
         case .success(let id):

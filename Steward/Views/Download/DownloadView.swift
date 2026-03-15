@@ -175,7 +175,8 @@ struct DownloadView: View {
         case .downloadProgress:
           StatusView(
             progress: .known(
-              self.downloadProgress?.processedEntries ?? 0, self.downloadProgress?.totalEntries ?? 0
+              self.downloadProgress?.successes ?? 0, self.downloadProgress?.failures ?? 0,
+              self.downloadProgress?.total ?? 0
             ),
             status: "Downloading")
         case .success:

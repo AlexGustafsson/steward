@@ -27,10 +27,13 @@ import (
 type FileNameFunc func(indexing.Entry) string
 
 type Downloader struct {
+	// DownloadedBytes is the total number of actually downloaded bytes.
 	DownloadedBytes atomic.Uint64
-	ProcessedBytes  atomic.Uint64
-	Failures        atomic.Uint64
-	Successes       atomic.Uint64
+	// Failures is the total number of failed downloads.
+	Failures atomic.Uint64
+	// Successes is the total number of successful downloads, regardless if they
+	// were downloaded or skipped.
+	Successes atomic.Uint64
 
 	// FileNameFunc optionally specifies a file name generator.
 	// Defaults to [FileNameFunc].
@@ -138,24 +141,26 @@ func (d *Downloader) Download(ctx context.Context, entry indexing.Entry) error {
 
 			if blobEntry.Digest == fileDigest {
 				slog.Debug("Local file matches remote - skipping")
+				d.Successes.Add(1)
 				return nil
 			}
 		} else {
 			slog.Debug("Local file name already exists - skipping")
+			d.Successes.Add(1)
 			return nil
 		}
 	}
 
 	blob, expectedDigest, err := d.remote.GetBlob(ctx, blobKey)
 	if err != nil {
+		d.Failures.Add(1)
 		return err
 	}
 	defer blob.Close()
 
 	md5sum := md5.New()
 
-	n, err := flac.Copy(file, newStatsReader(io.TeeReader(blob, md5sum), &d.DownloadedBytes), entry.Metadata)
-	d.ProcessedBytes.Add(uint64(n))
+	_, err = flac.Copy(file, newStatsReader(io.TeeReader(blob, md5sum), &d.DownloadedBytes), entry.Metadata)
 	if err != nil {
 		d.Failures.Add(1)
 		return err

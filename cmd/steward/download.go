@@ -12,7 +12,6 @@ import (
 	"os/signal"
 	"path/filepath"
 	"sync"
-	"sync/atomic"
 	"syscall"
 
 	"github.com/AlexGustafsson/steward/internal/indexing"
@@ -68,7 +67,6 @@ func DownloadAction(ctx context.Context, cmd *cli.Command) error {
 
 	totalEntries := uint64(0)
 	totalBytes := uint64(0)
-	var processedEntries atomic.Uint64
 	entriesCh := make(chan indexing.Entry, 32)
 
 	var wg sync.WaitGroup
@@ -79,13 +77,11 @@ func DownloadAction(ctx context.Context, cmd *cli.Command) error {
 		for range signals {
 			slog.Info(
 				"Download status",
+				slog.Uint64("total", totalEntries),
 				slog.Uint64("failures", downloader.Failures.Load()),
 				slog.Uint64("successes", downloader.Successes.Load()),
 				slog.Uint64("downloadedBytes", downloader.DownloadedBytes.Load()),
-				slog.Uint64("processedBytes", downloader.ProcessedBytes.Load()),
-				slog.Uint64("totalEntries", totalEntries),
 				slog.Uint64("totalBytes", totalBytes),
-				slog.Uint64("processedEntries", processedEntries.Load()),
 			)
 		}
 	}()
@@ -100,7 +96,6 @@ func DownloadAction(ctx context.Context, cmd *cli.Command) error {
 
 				logger.Debug("Processing entry")
 				err := downloader.Download(ctx, entry)
-				processedEntries.Add(1)
 				if err != nil {
 					logger.Error("Failed to download entry", slog.Any("error", err))
 				}
@@ -143,25 +138,21 @@ func DownloadAction(ctx context.Context, cmd *cli.Command) error {
 	if downloader.Failures.Load() > 0 {
 		slog.Error(
 			"Download failed",
+			slog.Uint64("total", totalEntries),
 			slog.Uint64("failures", downloader.Failures.Load()),
 			slog.Uint64("successes", downloader.Successes.Load()),
 			slog.Uint64("downloadedBytes", downloader.DownloadedBytes.Load()),
-			slog.Uint64("processedBytes", downloader.ProcessedBytes.Load()),
-			slog.Uint64("totalEntries", totalEntries),
 			slog.Uint64("totalBytes", totalBytes),
-			slog.Uint64("processedEntries", processedEntries.Load()),
 		)
 		os.Exit(1)
 	} else {
 		slog.Info(
 			"Download succeeded",
+			slog.Uint64("total", totalEntries),
 			slog.Uint64("failures", downloader.Failures.Load()),
 			slog.Uint64("successes", downloader.Successes.Load()),
 			slog.Uint64("downloadedBytes", downloader.DownloadedBytes.Load()),
-			slog.Uint64("processedBytes", downloader.ProcessedBytes.Load()),
-			slog.Uint64("totalEntries", totalEntries),
 			slog.Uint64("totalBytes", totalBytes),
-			slog.Uint64("processedEntries", processedEntries.Load()),
 		)
 	}
 

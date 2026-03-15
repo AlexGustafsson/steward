@@ -2,7 +2,7 @@ import SwiftData
 import SwiftUI
 
 enum Progress {
-  case known(UInt64, UInt64)
+  case known(UInt64, UInt64, UInt64)
   case unknown
 }
 
@@ -15,11 +15,12 @@ struct StatusView: View {
   var body: some View {
     VStack {
       switch progress {
-      case .known(let current, let total):
-        ProgressView(value: total == 0 ? 0.0 : Double(current) / Double(total)).progressViewStyle(
-          .circular
-        ).padding(20)
-        Text("\(status) \(current)/\(total)").foregroundStyle(.secondary)
+      case .known(let success, let fail, let total):
+        ProgressView(value: total == 0 ? 0.0 : Double(success + fail) / Double(total))
+          .progressViewStyle(
+            .circular
+          ).padding(20)
+        Text("\(status) \(success+fail)/\(total)").foregroundStyle(.secondary)
       case .unknown:
         ProgressView().padding(20)
         Text(status)
@@ -35,5 +36,5 @@ struct StatusView: View {
 }
 
 #Preview {
-  StatusView(progress: .known(1, 2), status: "Downloading")
+  StatusView(progress: .known(1, 1, 2), status: "Downloading")
 }

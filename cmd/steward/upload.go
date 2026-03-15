@@ -13,7 +13,6 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"syscall"
 
 	"github.com/AlexGustafsson/steward/internal/indexing"
@@ -67,7 +66,6 @@ func UploadAction(ctx context.Context, cmd *cli.Command) error {
 
 	totalEntries := uint64(0)
 	totalBytes := uint64(0)
-	var processedEntries atomic.Uint64
 	entriesCh := make(chan indexing.Entry, 32)
 
 	var wg sync.WaitGroup
@@ -78,13 +76,11 @@ func UploadAction(ctx context.Context, cmd *cli.Command) error {
 		for range signals {
 			slog.Info(
 				"Upload status",
+				slog.Uint64("total", totalEntries),
 				slog.Uint64("failures", uploader.Failures.Load()),
 				slog.Uint64("successes", uploader.Successes.Load()),
 				slog.Uint64("uploadedBytes", uploader.UploadedBytes.Load()),
-				slog.Uint64("processedBytes", uploader.ProcessedBytes.Load()),
-				slog.Uint64("totalEntries", totalEntries),
 				slog.Uint64("totalBytes", totalBytes),
-				slog.Uint64("processedEntries", processedEntries.Load()),
 			)
 		}
 	}()
@@ -173,25 +169,21 @@ func UploadAction(ctx context.Context, cmd *cli.Command) error {
 	if failed {
 		slog.Error(
 			"Upload failed",
+			slog.Uint64("total", totalEntries),
 			slog.Uint64("failures", uploader.Failures.Load()),
 			slog.Uint64("successes", uploader.Successes.Load()),
 			slog.Uint64("uploadedBytes", uploader.UploadedBytes.Load()),
-			slog.Uint64("processedBytes", uploader.ProcessedBytes.Load()),
-			slog.Uint64("totalEntries", totalEntries),
 			slog.Uint64("totalBytes", totalBytes),
-			slog.Uint64("processedEntries", processedEntries.Load()),
 		)
 		return ErrExit
 	} else {
 		slog.Info(
 			"Upload succeeded",
+			slog.Uint64("total", totalEntries),
 			slog.Uint64("failures", uploader.Failures.Load()),
 			slog.Uint64("successes", uploader.Successes.Load()),
 			slog.Uint64("uploadedBytes", uploader.UploadedBytes.Load()),
-			slog.Uint64("processedBytes", uploader.ProcessedBytes.Load()),
-			slog.Uint64("totalEntries", totalEntries),
 			slog.Uint64("totalBytes", totalBytes),
-			slog.Uint64("processedEntries", processedEntries.Load()),
 		)
 	}
 

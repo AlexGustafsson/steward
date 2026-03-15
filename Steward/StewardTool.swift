@@ -145,15 +145,19 @@ class StewardTool {
   }
 
   public struct DownloadProgress: Hashable {
+    public var total: UInt64
     public var failures: UInt64
     public var successes: UInt64
     public var downloadedBytes: UInt64
-    public var processedBytes: UInt64
-    public var totalEntries: UInt64
     public var totalBytes: UInt64
-    public var processedEntries: UInt64
 
     init?(fromEntry entry: LogEntry) {
+      if case .number(let total) = entry.additionalProperties["total"] {
+        self.total = UInt64(total)
+      } else {
+        return nil
+      }
+
       if case .number(let failures) = entry.additionalProperties["failures"] {
         self.failures = UInt64(failures)
       } else {
@@ -172,26 +176,8 @@ class StewardTool {
         return nil
       }
 
-      if case .number(let processedBytes) = entry.additionalProperties["processedBytes"] {
-        self.processedBytes = UInt64(processedBytes)
-      } else {
-        return nil
-      }
-
-      if case .number(let totalEntries) = entry.additionalProperties["totalEntries"] {
-        self.totalEntries = UInt64(totalEntries)
-      } else {
-        return nil
-      }
-
       if case .number(let totalBytes) = entry.additionalProperties["totalBytes"] {
         self.totalBytes = UInt64(totalBytes)
-      } else {
-        return nil
-      }
-
-      if case .number(let processedEntries) = entry.additionalProperties["processedEntries"] {
-        self.processedEntries = UInt64(processedEntries)
       } else {
         return nil
       }
@@ -199,15 +185,19 @@ class StewardTool {
   }
 
   public struct UploadProgress {
+    public var total: UInt64
     public var failures: UInt64
     public var successes: UInt64
     public var uploadedBytes: UInt64
-    public var processedBytes: UInt64
-    public var totalEntries: UInt64
     public var totalBytes: UInt64
-    public var processedEntries: UInt64
 
     init?(fromEntry entry: LogEntry) {
+      if case .number(let total) = entry.additionalProperties["total"] {
+        self.total = UInt64(total)
+      } else {
+        return nil
+      }
+
       if case .number(let failures) = entry.additionalProperties["failures"] {
         self.failures = UInt64(failures)
       } else {
@@ -226,26 +216,8 @@ class StewardTool {
         return nil
       }
 
-      if case .number(let processedBytes) = entry.additionalProperties["processedBytes"] {
-        self.processedBytes = UInt64(processedBytes)
-      } else {
-        return nil
-      }
-
-      if case .number(let totalEntries) = entry.additionalProperties["totalEntries"] {
-        self.totalEntries = UInt64(totalEntries)
-      } else {
-        return nil
-      }
-
       if case .number(let totalBytes) = entry.additionalProperties["totalBytes"] {
         self.totalBytes = UInt64(totalBytes)
-      } else {
-        return nil
-      }
-
-      if case .number(let processedEntries) = entry.additionalProperties["processedEntries"] {
-        self.processedEntries = UInt64(processedEntries)
       } else {
         return nil
       }

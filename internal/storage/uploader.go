@@ -20,10 +20,13 @@ import (
 )
 
 type Uploader struct {
-	UploadedBytes  atomic.Uint64
-	ProcessedBytes atomic.Uint64
-	Failures       atomic.Uint64
-	Successes      atomic.Uint64
+	// UploadedBytes is the total number of actually uploaded bytes.
+	UploadedBytes atomic.Uint64
+	// Failures is the total number of failed uploads.
+	Failures atomic.Uint64
+	// Successes is the total number of successful uploads, regardless if they
+	// were uploaded or skipped.
+	Successes atomic.Uint64
 
 	blobs  map[string]BlobInfo
 	remote BlobStorage
@@ -56,6 +59,7 @@ func (u *Uploader) Upload(ctx context.Context, entry indexing.Entry, force bool)
 
 	nameInRoot, err := filepath.Rel(u.local.Name(), entry.Name)
 	if err != nil {
+		u.Failures.Add(1)
 		return err
 	}
 
@@ -68,8 +72,10 @@ func (u *Uploader) Upload(ctx context.Context, entry indexing.Entry, force bool)
 			logger.Debug("Remote already has matching blob name but force enabled - uploading")
 		} else {
 			logger.Debug("Remote already has matching blob name - skipping")
-			u.ProcessedBytes.Add(uint64(entry.Size))
+			u.Successes.Add(1)
+			u.mutex.Lock()
 			u.successfulEntries = append(u.successfulEntries, entry)
+			u.mutex.Unlock()
 			return nil
 		}
 	} else {
@@ -102,13 +108,14 @@ func (u *Uploader) Upload(ctx context.Context, entry indexing.Entry, force bool)
 	if blobEntryExists && blobEntry.Digest == fileDigest {
 		logger.Debug("Remote blob matches local file - skipping upload")
 		file.Close()
-		u.ProcessedBytes.Add(uint64(entry.Size))
+		u.Successes.Add(1)
+		u.mutex.Lock()
 		u.successfulEntries = append(u.successfulEntries, entry)
+		u.mutex.Unlock()
 		return nil
 	}
 
 	err = u.remote.PutBlob(ctx, blobKey, newStatsReaderAtSeeker(file, &u.UploadedBytes), fileDigest, fileSize)
-	u.ProcessedBytes.Add(uint64(entry.Size))
 	if err != nil {
 		u.Failures.Add(1)
 		return err
@@ -116,8 +123,8 @@ func (u *Uploader) Upload(ctx context.Context, entry indexing.Entry, force bool)
 
 	u.Successes.Add(1)
 	u.mutex.Lock()
-	defer u.mutex.Unlock()
 	u.successfulEntries = append(u.successfulEntries, entry)
+	u.mutex.Unlock()
 	return nil
 }
 
