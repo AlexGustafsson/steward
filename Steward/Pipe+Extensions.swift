@@ -15,7 +15,7 @@ extension Pipe {
             buffer.append(chunk)
             while let linebreak = buffer.firstIndex(of: UInt8(ascii: "\n")) {
               let line = Data(buffer[buffer.startIndex..<linebreak])
-              buffer = Data(buffer[buffer.index(after:linebreak)...])
+              buffer = Data(buffer[buffer.index(after: linebreak)...])
               try onLine(line)
             }
           }

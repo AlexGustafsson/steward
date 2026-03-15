@@ -110,7 +110,7 @@ class StewardTool {
 
       self.pipe = pipe
       self.task = Task {
-        try await withCheckedThrowingContinuation{ continuation in
+        try await withCheckedThrowingContinuation { continuation in
           let data = pipe.fileHandleForReading.readDataToEndOfFile()
           continuation.resume(returning: [UInt8](data))
         }
@@ -280,7 +280,7 @@ class StewardTool {
 
           // Try to interpret progress reporting
           switch entry.msg {
-          case "Upload in progress":
+          case "Upload status":
             if let entry = UploadProgress(fromEntry: entry) {
               if let onUploadProgress {
                 Task { @MainActor in
@@ -288,7 +288,7 @@ class StewardTool {
                 }
               }
             }
-          case "Download in progress":
+          case "Download status":
             if let entry = DownloadProgress(fromEntry: entry) {
               if let onDownloadProgress {
                 Task { @MainActor in
@@ -324,7 +324,8 @@ class StewardTool {
   private static func run(
     environment: [String: String], arguments: [String], stdin: StewardTool.Stdin?,
     stdout: StewardTool.Stdout?,
-    stderr: StewardTool.Stderr?
+    stderr: StewardTool.Stderr?,
+    statusInterval: TimeInterval? = nil,
   ) throws -> Task<Void, Swift.Error> {
     let process = Process()
     process.executableURL = self.url
