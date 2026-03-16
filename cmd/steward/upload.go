@@ -9,11 +9,9 @@ import (
 	"io"
 	"log/slog"
 	"os"
-	"os/signal"
 	"path/filepath"
 	"strings"
 	"sync"
-	"syscall"
 
 	"github.com/AlexGustafsson/steward/internal/indexing"
 	"github.com/AlexGustafsson/steward/internal/storage"
@@ -71,8 +69,7 @@ func UploadAction(ctx context.Context, cmd *cli.Command) error {
 	var wg sync.WaitGroup
 
 	go func() {
-		signals := make(chan os.Signal, 1)
-		signal.Notify(signals, syscall.SIGINFO)
+		signals := StatusSignals()
 		for range signals {
 			slog.Info(
 				"Upload status",
