@@ -45,4 +45,4 @@ jobs:
         env:
           # Use the toolchain specified in go.mod, or newer
           GOTOOLCHAIN: auto
-        run: go build -o steward cmd/steward/*.go
+        run: go build -o steward ./cmd/steward/...
