@@ -172,3 +172,41 @@ func (u *Uploader) UploadIndex(ctx context.Context, pathPrefix string, label str
 
 	return namespace + ":" + id, nil
 }
+
+func UploadIndex(ctx context.Context, remote BlobStorage, entries []indexing.Entry, label string) (string, error) {
+	var buffer bytes.Buffer
+
+	md5 := md5.New()
+	gzipWriter := gzip.NewWriter(io.MultiWriter(&buffer, md5))
+	encoder := json.NewEncoder(gzipWriter)
+	for _, entry := range entries {
+		err := encoder.Encode(&entry)
+		if err != nil {
+			return "", err
+		}
+	}
+	if err := gzipWriter.Close(); err != nil {
+		return "", err
+	}
+
+	md5sum := hex.EncodeToString(md5.Sum(nil))
+
+	fileDigest := "md5:" + md5sum
+
+	// By default, the key is just the first few characters of the md5sum as the
+	// whole point of the indexes is to simplify for humans referencing to it
+	namespace := "md5"
+	id := md5sum[0:5]
+	if label != "" {
+		namespace = "_"
+		id = label
+	}
+	key := path.Join("index", namespace, id)
+
+	err := remote.PutBlob(ctx, key, bytes.NewReader(buffer.Bytes()), fileDigest, int64(buffer.Len()))
+	if err != nil {
+		return "", err
+	}
+
+	return namespace + ":" + id, nil
+}

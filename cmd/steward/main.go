@@ -101,6 +101,28 @@ func main() {
 				},
 			},
 			{
+				Name:      "upload-index",
+				Action:    UploadIndexAction,
+				Usage:     "Uploads an index",
+				ArgsUsage: "[index]",
+				Arguments: []cli.Argument{
+					&cli.StringArg{
+						Name: "index",
+					},
+				},
+				DisableSliceFlagSeparator: true,
+				Flags: []cli.Flag{
+					&cli.StringFlag{
+						Name:     "to",
+						Required: true,
+					},
+					&cli.StringFlag{
+						Name:  "tag",
+						Usage: "Named tag",
+					},
+				},
+			},
+			{
 				Name:      "download",
 				Usage:     "Downloads files in an index from a remote",
 				Action:    DownloadAction,
