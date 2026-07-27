@@ -2,6 +2,8 @@
 
 BASE_PATH="$1"
 DRY_RUN=1
+SOURCE=DB
+DURATION_FUZZINESS_SECONDS=2
 
 touch lrclib_ul lrclib_sl
 function cleanup {
@@ -14,7 +16,44 @@ function prepare_string() {
 	echo -n "$1" | tr '`~!@#$%^&*()_|+-=?;:",.‐<>{}[]\\/\n' ' ' | tr -d "'’" | iconv -c -s -f utf8 -t ascii//TRANSLIT | tr '[:upper:]' '[:lower:]' | sed -e 's/  \+/ /g' -e 's/^ \+//' -e 's/ \+$//'
 }
 
-function get_lyrics() {
+function lrclib_search() {
+	api="$1"
+	track_name="$2"
+	artist_name="$3"
+	album_name="$4"
+	duration="$5"
+
+	curl --silent --get "$api/api/search" \
+		-H "User-Agent: github.com/alexgustafsson/steward" \
+		--data-urlencode "track_name=$track_name" \
+		--data-urlencode "artist_name=$artist_name" \
+		--data-urlencode "album_name=$album_name" | jq -rc ".[] | select(.duration > $((duration - DURATION_FUZZINESS_SECONDS)) and .duration < $((duration + DURATION_FUZZINESS_SECONDS)))"
+}
+
+function get_lyrics_api() {
+	track_name="$1"
+	artist_name="$2"
+	album_name="$3"
+	duration="$4"
+
+	matches="$(lrclib_search "https://api.lrcmux.dev/compat/lrclib" "$track_name" "$artist_name" "$album_name" "$duration")"
+	if [[ -z "$matches" ]]; then
+		return
+	fi
+
+	unsynced_lyrics="$(jq -c '.plainLyrics | select(. != null)' <<<"$matches" | head -1)"
+	unsynced_lyrics="${unsynced_lyrics:-\"\"}"
+
+	synced_lyrics="$(jq -c '.syncedLyrics | select(. != null)' <<<"$matches" | head -1)"
+	synced_lyrics="${synced_lyrics:-\"\"}"
+
+	jq -rcn \
+		--argjson plain_lyrics "$unsynced_lyrics" \
+		--argjson synced_lyrics "$synced_lyrics" \
+		'{plain_lyrics: $plain_lyrics, synced_lyrics: $synced_lyrics}'
+}
+
+function get_lyrics_db() {
 	track_name="$(prepare_string "$1")"
 	artist_name="$(prepare_string "$2")"
 	album_name="$(prepare_string "$3")"
@@ -49,6 +88,14 @@ WHERE
 ORDER BY (lyrics.synced_lyrics IS NOT NULL) DESC, tracks.id
 LIMIT 1;
 EOF
+}
+
+function get_lyrics() {
+	if [[ "$SOURCE" = "API" ]]; then
+		get_lyrics_api "$@"
+	elif [[ "$SOURCE" = "DB" ]]; then
+		get_lyrics_db "$@"
+	fi
 }
 
 total_analyzed=0
