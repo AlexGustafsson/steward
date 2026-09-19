@@ -43,18 +43,19 @@ struct EntriesTable: View {
         of: IndexEntry.self, selection: $selection, sortOrder: $sortOrder,
         columnCustomization: $columnCustomization
       ) {
-        TableColumn("Artist") { entry in
-          Text(entry.artist ?? "")
-        }.customizationID("artist")
         TableColumn("Album") { entry in
           Text(entry.album ?? "")
         }.customizationID("album")
         TableColumn("Disc #") { entry in
           Text(entry.disc ?? "")
-        }.width(50).customizationID("disc")
+        }.width(50).alignment(.trailing).customizationID("disc")
         TableColumn("Track #") { entry in
           Text(entry.track ?? "")
-        }.width(50).customizationID("track")
+        }.width(50).alignment(.trailing).customizationID("track")
+        TableColumn("Artist") { entry in
+          Text(entry.artist ?? "")
+
+        }.customizationID("artist")
         TableColumn("Title") { entry in
           Text(entry.title ?? "")
         }.customizationID("title")
