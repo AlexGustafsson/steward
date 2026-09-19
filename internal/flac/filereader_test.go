@@ -105,7 +105,7 @@ func xxd(message []byte) {
 
 		fmt.Print(" ")
 
-		for i := 0; i < len(slice); i++ {
+		for i := range slice {
 			c := slice[i]
 			if c >= 32 && c <= 127 {
 				s := strings.TrimSpace(string(c))
