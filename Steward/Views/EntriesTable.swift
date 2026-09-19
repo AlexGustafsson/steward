@@ -4,15 +4,36 @@ import SwiftUI
 struct EntriesTable: View {
   @Binding public var entries: [IndexEntry]
 
+  @State private var filteredEntries: [IndexEntry] = []
+
   @State private var selection: Set<IndexEntry.ID> = []
   @State private var sortOrder = [KeyPathComparator(\IndexEntry.sortKey)]
   @State private var columnCustomization: TableColumnCustomization<IndexEntry> = .init()
 
   @State private var isInspectorPresented = true
+  @State private var searchText = ""
 
   func delete(_ id: IndexEntry.ID) {
     if let index = entries.firstIndex(where: { $0.id == id }) {
       entries.remove(at: index)
+    }
+  }
+
+  func filterEntries(
+    entries: [IndexEntry],
+    searchText: String,
+  ) -> [IndexEntry] {
+    if searchText.isEmpty {
+      return entries
+    }
+
+    return entries.filter { entry in
+      let query = searchText.lowercased()
+      let album = entry.album?.lowercased() ?? ""
+      let artist = entry.artist?.lowercased() ?? ""
+      let title = entry.title?.lowercased() ?? ""
+
+      return album.contains(query) || artist.contains(query) || title.contains(query)
     }
   }
 
@@ -38,7 +59,7 @@ struct EntriesTable: View {
           Text(entry.title ?? "")
         }.customizationID("title")
       } rows: {
-        ForEach(entries) { entry in
+        ForEach(filteredEntries) { entry in
           TableRow(entry)
             .contextMenu {
               Button("Delete", role: .destructive) {
@@ -71,7 +92,12 @@ struct EntriesTable: View {
               Label("Toggle Inspector", systemImage: "info.circle")
             }
           }
-      }
+      }.searchable(text: $searchText)
+        .onChange(of: searchText) {
+          self.filteredEntries = filterEntries(entries: self.entries, searchText: self.searchText)
+        }.onChange(of: entries) {
+          self.filteredEntries = filterEntries(entries: self.entries, searchText: self.searchText)
+        }
     }
   }
 }
