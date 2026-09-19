@@ -103,7 +103,7 @@ struct IndexEntryInspectorForm: View {
 }
 
 #Preview {
-  var entries: [IndexEntry] = [
+  let entries: [IndexEntry] = [
     IndexEntry(
       name: "/user/alex/1", modTime: .now, size: 30_000_000, metadata: ["ALBUM=Wet wet wet"],
       audioDigest: "md5:b1946ac92492d2347c6235b4d2611184",
@@ -114,7 +114,7 @@ struct IndexEntryInspectorForm: View {
       pictureDigest: "md5:d41d8cd98f00b204e9800998ecf8427e"),
   ]
 
-  var selection: Set<IndexEntry.ID> = ["/user/alex/1"]
+  let selection: Set<IndexEntry.ID> = ["/user/alex/1"]
 
   IndexEntryInspectorForm(entries: entries, selection: selection)
 }

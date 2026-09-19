@@ -10,7 +10,7 @@ targets:
     supportedDestinations:
       - macOS
     deploymentTarget:
-      macOS: 26.0
+      macOS: 27.0
     sources: [Steward]
     dependencies:
       - target: StewardTool

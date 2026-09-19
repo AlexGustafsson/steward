@@ -18,8 +18,8 @@ struct SelectFoldersView: View {
 
   init(title: String, multi: Bool, action: @escaping ([URL]) -> Void) {
     self.title = title
-    self.multi = multi
     self.action = action
+    self.multi = multi
   }
 
   var body: some View {
