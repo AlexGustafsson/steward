@@ -31,57 +31,58 @@ struct IndexView: View {
   // TODO: Should essentially be index then viewindex view to allow for export / upload
   // TODO: Similar to upload view (confirm index view?)
   var body: some View {
-    if self.state == .idle {
-      SelectFoldersView(title: "Drag and drop folders to index") { urls in
-        let url = urls.first!
-        do {
-          let task = try StewardTool.index(roots: [url])
-          self.state = .indexing(task)
-          self.sheet = .indexProgress
-          Task {
-            do {
-              self.entries = try await task.value
-              self.url = url
-              self.state = .indexed
-              self.sheet = nil
-            } catch {
-              systemLogger.error("Failed to index: \(error, privacy: .public)")
-              self.sheet = .error("Failed to index: \(error.localizedDescription)")
+    Group {
+      if self.state == .idle {
+        SelectFoldersView(title: "Drag and drop folders to index") { urls in
+          let url = urls.first!
+          do {
+            let task = try StewardTool.index(roots: [url])
+            self.state = .indexing(task)
+            self.sheet = .indexProgress
+            Task {
+              do {
+                self.entries = try await task.value
+                self.url = url
+                self.state = .indexed
+                self.sheet = nil
+              } catch {
+                systemLogger.error("Failed to index: \(error, privacy: .public)")
+                self.sheet = .error("Failed to index: \(error.localizedDescription)")
+              }
             }
+          } catch {
+            systemLogger.error("Failed to index: \(error, privacy: .public)")
+            self.sheet = .error("Failed to index: \(error.localizedDescription)")
           }
-        } catch {
-          systemLogger.error("Failed to index: \(error, privacy: .public)")
-          self.sheet = .error("Failed to index: \(error.localizedDescription)")
+        }
+      } else {
+        EntriesView(entries: $entries) {
+          Button("Cancel") {
+            self.entries = []
+            self.state = .idle
+            self.sheet = nil
+          }.keyboardShortcut(.cancelAction)
+          Button("Export") {
+            // TODO
+          }.keyboardShortcut(.defaultAction)
         }
       }
-    } else {
-      EntriesView(entries: $entries) {
-        Button("Cancel") {
-          self.entries = []
-          self.state = .idle
-          self.sheet = nil
-        }.keyboardShortcut(.cancelAction)
-        Button("Export") {
-          // TODO
-        }.keyboardShortcut(.defaultAction)
-      }
-      .sheet(item: $sheet) {
-        switch state {
-        case .indexing(let task):
-          task.cancel()
-        default:
-          break
-        }
-
+    }.sheet(item: $sheet) {
+      switch state {
+      case .indexing(let task):
+        task.cancel()
         self.state = .idle
-        self.sheet = nil
-      } content: { sheet in
-        switch sheet {
-        case .indexProgress:
-          StatusView(progress: .unknown, status: "Indexing")
-        case .error(let error):
-          StatusFailedView(text: error)
-        }
+      default:
+        break
+      }
+
+      self.sheet = nil
+    } content: { sheet in
+      switch sheet {
+      case .indexProgress:
+        StatusView(progress: .unknown, status: "Indexing")
+      case .error(let error):
+        StatusFailedView(text: error)
       }
     }
   }
