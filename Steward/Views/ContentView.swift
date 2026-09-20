@@ -1,9 +1,16 @@
 import SwiftData
 import SwiftUI
 
+enum SidebarItem: Hashable {
+  case upload
+  case download
+  case index
+  case showIndex
+  case duplicates
+}
+
 struct ContentView: View {
-  @State var selection = "upload"
-  @State var inProgress = false
+  @State private var selection: SidebarItem? = .upload
 
   // TODO: Use a manager with a reactive property for this from the environnment.
   // Right now, the first time, the app needs to be restarted
@@ -11,39 +18,48 @@ struct ContentView: View {
 
   var body: some View {
     NavigationSplitView {
-      List {
-        Text("Backup").font(.subheadline)
-        NavigationLink {
-          UploadView()
-        } label: {
+      List(selection: $selection) {
+        Text("Backup")
+          .font(.subheadline)
+
+        NavigationLink(value: SidebarItem.upload) {
           Label("Upload", systemImage: "arrow.up.circle")
         }
 
-        NavigationLink {
-          DownloadView()
-        } label: {
+        NavigationLink(value: SidebarItem.download) {
           Label("Download", systemImage: "arrow.down.circle")
         }
 
-        Text("Indexing").font(.subheadline)
-        NavigationLink {
-          IndexView()
-        } label: {
+        Text("Indexing")
+          .font(.subheadline)
+
+        NavigationLink(value: SidebarItem.index) {
           Label("Index", systemImage: "waveform.badge.magnifyingglass")
         }
-        NavigationLink {
-          ViewIndexView()
-        } label: {
+
+        NavigationLink(value: SidebarItem.showIndex) {
           Label("Show index", systemImage: "waveform.path.ecg.text.page")
         }
-        NavigationLink {
-          ViewIndexDuplicatesView()
-        } label: {
+
+        NavigationLink(value: SidebarItem.duplicates) {
           Label("Find duplicates", systemImage: "document.on.document")
         }
       }
     } detail: {
-      Text("Default home")
+      switch selection {
+      case .upload:
+        UploadView()
+      case .download:
+        DownloadView()
+      case .index:
+        IndexView()
+      case .showIndex:
+        ViewIndexView()
+      case .duplicates:
+        ViewIndexDuplicatesView()
+      case nil:
+        UploadView()
+      }
     }
   }
 }
