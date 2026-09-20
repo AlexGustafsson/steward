@@ -22,28 +22,23 @@ struct ContentView: View {
         Text("Backup")
           .font(.subheadline)
 
-        NavigationLink(value: SidebarItem.upload) {
-          Label("Upload", systemImage: "arrow.up.circle")
-        }
+        Label("Upload", systemImage: "arrow.up.circle")
+          .tag(SidebarItem.upload)
 
-        NavigationLink(value: SidebarItem.download) {
-          Label("Download", systemImage: "arrow.down.circle")
-        }
+        Label("Download", systemImage: "arrow.down.circle")
+          .tag(SidebarItem.download)
 
         Text("Indexing")
           .font(.subheadline)
 
-        NavigationLink(value: SidebarItem.index) {
-          Label("Index", systemImage: "waveform.badge.magnifyingglass")
-        }
+        Label("Index", systemImage: "waveform.badge.magnifyingglass")
+          .tag(SidebarItem.index)
 
-        NavigationLink(value: SidebarItem.showIndex) {
-          Label("Show index", systemImage: "waveform.path.ecg.text.page")
-        }
+        Label("Show index", systemImage: "waveform.path.ecg.text.page")
+          .tag(SidebarItem.showIndex)
 
-        NavigationLink(value: SidebarItem.duplicates) {
-          Label("Find duplicates", systemImage: "document.on.document")
-        }
+        Label("Find duplicates", systemImage: "document.on.document")
+          .tag(SidebarItem.duplicates)
       }
     } detail: {
       switch selection {
