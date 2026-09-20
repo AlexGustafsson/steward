@@ -25,6 +25,9 @@ struct UploadView: View {
     }
   }
 
+  @State private var force = false
+  @State private var showForceHelp = false
+
   @State private var state: UploadViewState = .idle
   @State private var sheet: UploadViewSheet? = nil
 
@@ -58,41 +61,52 @@ struct UploadView: View {
         }
       }
     } else {
-      ConfirmEntriesView(
-        entries: $entries, confirmLabel: "Upload",
-        action: { confirmed, force in
-          if confirmed {
-            do {
-              self.uploadProgress = nil
-              let task = try StewardTool.upload(
-                root: self.url!, entries: self.entries, force: force
-              ) { progress in
-                self.uploadProgress = progress
-              }
-              self.state = .uploading(task)
-              self.sheet = .uploadProgress
-              Task {
-                do {
-                  let id = try await task.value
-                  self.state = .success(id)
-                  self.sheet = .success(id)
-                } catch {
-                  systemLogger.error("Failed to upload: \(error, privacy: .public)")
-                  self.sheet = .error("Failed to upload: \(error.localizedDescription)")
-                }
-              }
-            } catch {
-              systemLogger.error("Failed to upload: \(error, privacy: .public)")
-              self.sheet = .error("Failed to upload: \(error.localizedDescription)")
-            }
-          } else {
-            self.url = nil
-            self.entries = []
-            self.state = .idle
-            self.sheet = nil
-          }
+      EntriesView(
+        entries: $entries
+      ) {
+        Toggle(isOn: $force) {
+          Text("Force")
         }
-      ).sheet(item: $sheet) {
+        .toggleStyle(.checkbox)
+        .foregroundStyle(.red)
+        Button(action: { showForceHelp.toggle() }) {
+          Image(systemName: "info.circle").foregroundStyle(.secondary)
+        }.popover(isPresented: $showForceHelp) {
+          Text("Overwrite remote or local files if they don't already match").padding()
+        }.buttonStyle(PlainButtonStyle())
+      } actions: {
+        Button("Cancel") {
+          self.url = nil
+          self.entries = []
+          self.state = .idle
+          self.sheet = nil
+        }.keyboardShortcut(.cancelAction)
+        Button("Upload") {
+          do {
+            self.uploadProgress = nil
+            let task = try StewardTool.upload(
+              root: self.url!, entries: self.entries, force: force
+            ) { progress in
+              self.uploadProgress = progress
+            }
+            self.state = .uploading(task)
+            self.sheet = .uploadProgress
+            Task {
+              do {
+                let id = try await task.value
+                self.state = .success(id)
+                self.sheet = .success(id)
+              } catch {
+                systemLogger.error("Failed to upload: \(error, privacy: .public)")
+                self.sheet = .error("Failed to upload: \(error.localizedDescription)")
+              }
+            }
+          } catch {
+            systemLogger.error("Failed to upload: \(error, privacy: .public)")
+            self.sheet = .error("Failed to upload: \(error.localizedDescription)")
+          }
+        }.foregroundStyle(self.force ? .red : .blue)
+      }.sheet(item: $sheet) {
         switch state {
         case .indexing(let task):
           task.cancel()

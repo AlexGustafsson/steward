@@ -1,52 +1,41 @@
 import SwiftData
 import SwiftUI
 
-struct ConfirmEntriesView: View {
-  @Binding public var entries: [IndexEntry]
-  public var confirmLabel: String = "Confirm"
+struct EntriesView<Options: View, Actions: View>: View {
+  @Binding private var entries: [IndexEntry]
 
-  let action: (Bool, Bool) -> Void
+  private let options: Options
+  private let actions: Actions
 
-  @State private var force = false
-  @State private var showForceHelp = false
-
-  init(entries: Binding<[IndexEntry]>, action: @escaping (Bool, Bool) -> Void) {
+  init(entries: Binding<[IndexEntry]>, @ContentBuilder actions: () -> Actions)
+  where Options == EmptyView {
     self._entries = entries
-    self.action = action
+    self.options = EmptyView()
+    self.actions = actions()
   }
 
-  init(entries: Binding<[IndexEntry]>, confirmLabel: String, action: @escaping (Bool, Bool) -> Void)
-  {
+  init(
+    entries: Binding<[IndexEntry]>, @ContentBuilder options: () -> Options,
+    @ContentBuilder actions: () -> Actions
+  ) {
     self._entries = entries
-    self.confirmLabel = confirmLabel
-    self.action = action
+    self.options = options()
+    self.actions = actions()
   }
 
   var body: some View {
     VStack {
       EntriesTable(entries: $entries)
       Divider()
-      HStack {
-        Toggle(isOn: $force) {
-          Text("Force")
-        }
-        .toggleStyle(.checkbox)
-        .foregroundStyle(.red)
-        Button(action: { showForceHelp.toggle() }) {
-          Image(systemName: "info.circle").foregroundStyle(.secondary)
-        }.popover(isPresented: $showForceHelp) {
-          Text("Overwrite remote or local files if they don't already match").padding()
-        }.buttonStyle(PlainButtonStyle())
-        Spacer()
-      }.padding()
+      if Options.self != EmptyView.self {
+        HStack {
+          options
+          Spacer()
+        }.padding()
+      }
       HStack {
         Spacer()
-        Button("Cancel") {
-          self.action(false, self.force)
-        }
-        Button(confirmLabel) {
-          self.action(true, self.force)
-        }.foregroundStyle(self.force ? .red : .blue)
+        actions
       }.padding()
     }
   }
@@ -64,7 +53,12 @@ struct ConfirmEntriesView: View {
       pictureDigest: "md5:d41d8cd98f00b204e9800998ecf8427e"),
   ]
 
-  ConfirmEntriesView(entries: $entries) { confirmed, force in
-    print(confirmed)
+  EntriesView(entries: $entries) {
+    Button("Cancel") {
+      //
+    }.keyboardShortcut(.cancelAction)
+    Button("Confirm") {
+      //
+    }.keyboardShortcut(.defaultAction)
   }
 }

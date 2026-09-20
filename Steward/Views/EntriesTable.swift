@@ -72,17 +72,19 @@ struct EntriesTable: View {
                   }
                   selection.removeAll()
                 }
-              }
+              }.keyboardShortcut(.delete, modifiers: [])
             }
         }
-      }.onChange(of: sortOrder) { _, sortOrder in
+      }
+      .onChange(of: sortOrder) { _, sortOrder in
         entries.sort(using: sortOrder)
-      }.keyboardShortcut(.delete, modifiers: []).onDeleteCommand(perform: {
+      }
+      .onDeleteCommand {
         for entry in selection {
           delete(entry)
         }
         selection.removeAll()
-      }).inspector(isPresented: $isInspectorPresented) {
+      }.inspector(isPresented: $isInspectorPresented) {
         IndexEntryInspectorForm(entries: entries, selection: selection)
           .inspectorColumnWidth(
             min: 300, ideal: 400, max: 500
@@ -93,18 +95,19 @@ struct EntriesTable: View {
               Label("Toggle Inspector", systemImage: "info.circle")
             }
           }
-      }.searchable(text: $searchText)
-        .onChange(of: searchText) {
-          self.filteredEntries = filterEntries(entries: self.entries, searchText: self.searchText)
-        }.onChange(of: entries) {
-          self.filteredEntries = filterEntries(entries: self.entries, searchText: self.searchText)
-        }.toolbar {
-          Button {
-            // TODO
-          } label: {
-            Label("Undo", systemImage: "arrow.uturn.backward.circle")
-          }
+      }
+      .searchable(text: $searchText)
+      .onChange(of: searchText) {
+        self.filteredEntries = filterEntries(entries: self.entries, searchText: self.searchText)
+      }.onChange(of: entries) {
+        self.filteredEntries = filterEntries(entries: self.entries, searchText: self.searchText)
+      }.toolbar {
+        Button {
+          // TODO
+        } label: {
+          Label("Undo", systemImage: "arrow.uturn.backward.circle")
         }
+      }
     }
   }
 }

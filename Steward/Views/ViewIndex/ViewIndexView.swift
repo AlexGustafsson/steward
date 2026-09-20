@@ -72,20 +72,15 @@ struct ViewIndexView: View {
         }
       }
     } else {
-      VStack {
-        EntriesTable(entries: $entries)
-        Divider()
-        HStack {
-          Spacer()
-          Button("Cancel") {
-            self.entries = []
-            self.state = .idle
-            self.sheet = nil
-          }.keyboardShortcut(.cancelAction)
-          Button("Export") {
-            // TODO
-          }.keyboardShortcut(.defaultAction)
-        }.padding()
+      EntriesView(entries: $entries) {
+        Button("Cancel") {
+          self.entries = []
+          self.state = .idle
+          self.sheet = nil
+        }.keyboardShortcut(.cancelAction)
+        Button("Export") {
+          // TODO
+        }.keyboardShortcut(.defaultAction)
       }
     }
   }

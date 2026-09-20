@@ -27,6 +27,9 @@ struct DownloadView: View {
     }
   }
 
+  @State private var force = false
+  @State private var showForceHelp = false
+
   @State private var state: DownloadViewState = .idle
   @State private var sheet: DownloadViewSheet? = nil
 
@@ -62,61 +65,72 @@ struct DownloadView: View {
         }
       }
     } else {
-      ConfirmEntriesView(
-        entries: $entries, confirmLabel: "Download",
-        action: { confirmed, force in
-          if confirmed {
-            let panel = NSOpenPanel()
-            panel.allowsMultipleSelection = false
-            panel.canChooseDirectories = true
-            panel.canChooseFiles = false
-            panel.canCreateDirectories = true
-            if panel.runModal() != .OK {
+      EntriesView(
+        entries: $entries
+      ) {
+        Toggle(isOn: $force) {
+          Text("Force")
+        }
+        .toggleStyle(.checkbox)
+        .foregroundStyle(.red)
+        Button(action: { showForceHelp.toggle() }) {
+          Image(systemName: "info.circle").foregroundStyle(.secondary)
+        }.popover(isPresented: $showForceHelp) {
+          Text("Overwrite remote or local files if they don't already match").padding()
+        }.buttonStyle(PlainButtonStyle())
+      } actions: {
+        Button("Cancel") {
+          self.entries = []
+          self.state = .idle
+          self.sheet = nil
+        }.keyboardShortcut(.cancelAction)
+        Button("Download") {
+          let panel = NSOpenPanel()
+          panel.allowsMultipleSelection = false
+          panel.canChooseDirectories = true
+          panel.canChooseFiles = false
+          panel.canCreateDirectories = true
+          if panel.runModal() != .OK {
+            return
+          }
+
+          if !force {
+            let isEmpty =
+              FileManager.default.enumerator(atPath: panel.url!.path(percentEncoded: false))?
+              .nextObject() == nil
+            if !isEmpty {
+              self.sheet = .error(
+                "Refusing to download to a non-empty directory. Select another directory or enable force."
+              )
               return
             }
-
-            if !force {
-              let isEmpty =
-                FileManager.default.enumerator(atPath: panel.url!.path(percentEncoded: false))?
-                .nextObject() == nil
-              if !isEmpty {
-                self.sheet = .error(
-                  "Refusing to download to a non-empty directory. Select another directory or enable force."
-                )
-                return
-              }
-            }
-
-            do {
-              self.downloadProgress = nil
-              let task = try StewardTool.download(
-                root: panel.url!, entries: self.entries, force: force
-              ) { progress in
-                self.downloadProgress = progress
-              }
-              self.state = .downloading(task)
-              self.sheet = .downloadProgress
-              Task {
-                do {
-                  let _ = try await task.value
-                  self.state = .success
-                  self.sheet = .success
-                } catch {
-                  systemLogger.error("Failed to download: \(error, privacy: .public)")
-                  self.sheet = .error("Failed to download: \(error.localizedDescription)")
-                }
-              }
-            } catch {
-              systemLogger.error("Failed to download: \(error, privacy: .public)")
-              self.sheet = .error("Failed to download: \(error.localizedDescription)")
-            }
-          } else {
-            self.entries = []
-            self.state = .idle
-            self.sheet = nil
           }
-        }
-      ).toolbar {
+
+          do {
+            self.downloadProgress = nil
+            let task = try StewardTool.download(
+              root: panel.url!, entries: self.entries, force: force
+            ) { progress in
+              self.downloadProgress = progress
+            }
+            self.state = .downloading(task)
+            self.sheet = .downloadProgress
+            Task {
+              do {
+                let _ = try await task.value
+                self.state = .success
+                self.sheet = .success
+              } catch {
+                systemLogger.error("Failed to download: \(error, privacy: .public)")
+                self.sheet = .error("Failed to download: \(error.localizedDescription)")
+              }
+            }
+          } catch {
+            systemLogger.error("Failed to download: \(error, privacy: .public)")
+            self.sheet = .error("Failed to download: \(error.localizedDescription)")
+          }
+        }.foregroundStyle(self.force ? .red : .blue)
+      }.toolbar {
         ToolbarItem {
           Button {
             let panel = NSOpenPanel()
