@@ -98,6 +98,12 @@ struct EntriesTable: View {
           self.filteredEntries = filterEntries(entries: self.entries, searchText: self.searchText)
         }.onChange(of: entries) {
           self.filteredEntries = filterEntries(entries: self.entries, searchText: self.searchText)
+        }.toolbar {
+          Button {
+            // TODO
+          } label: {
+            Label("Undo", systemImage: "arrow.uturn.backward.circle")
+          }
         }
     }
   }
