@@ -24,6 +24,8 @@ struct IndexView: View {
   @State private var state: IndexViewState = .idle
   @State private var sheet: IndexViewSheet? = nil
 
+  // TODO: Should essentially be index then viewindex view to allow for export / upload
+  // TODO: Similar to upload view (confirm index view?)
   var body: some View {
     SelectFoldersView(title: "Drag and drop folders to index") { urls in
       let savePanel = NSSavePanel()

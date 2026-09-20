@@ -82,7 +82,10 @@ struct ViewIndexDuplicatesView: View {
             self.entries = []
             self.state = .idle
             self.sheet = nil
-          }
+          }.keyboardShortcut(.cancelAction)
+          Button("Export") {
+            // TODO
+          }.keyboardShortcut(.defaultAction)
         }.padding()
       }
     }

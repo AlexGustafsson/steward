@@ -26,6 +26,7 @@ struct ViewIndexView: View {
 
   @State private var entries: [IndexEntry] = []
 
+  // TODO: Lacks the loading state that other views have?
   var body: some View {
     if self.state == .idle {
       SelectIndexView(title: "Drag and drop index to show") { reference in
@@ -80,7 +81,10 @@ struct ViewIndexView: View {
             self.entries = []
             self.state = .idle
             self.sheet = nil
-          }
+          }.keyboardShortcut(.cancelAction)
+          Button("Export") {
+            // TODO
+          }.keyboardShortcut(.defaultAction)
         }.padding()
       }
     }
