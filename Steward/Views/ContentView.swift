@@ -31,7 +31,7 @@ struct ContentView: View {
         Text("Indexing")
           .font(.subheadline)
 
-        Label("Index", systemImage: "waveform.badge.magnifyingglass")
+        Label("Create index", systemImage: "waveform.badge.magnifyingglass")
           .tag(SidebarItem.index)
 
         Label("Show index", systemImage: "waveform.path.ecg.text.page")
