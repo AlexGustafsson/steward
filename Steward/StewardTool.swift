@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 import os
 
@@ -577,5 +578,31 @@ func readIndex(from url: URL) throws -> Task<[IndexEntry], Error> {
     }
 
     return entries.sorted(using: KeyPathComparator(\IndexEntry.sortKey))
+  }
+}
+
+func saveIndex(entries: [IndexEntry]) throws {
+  let savePanel = NSSavePanel()
+  savePanel.canCreateDirectories = true
+  savePanel.showsContentTypes = true
+  savePanel.showsTagField = false
+  savePanel.nameFieldStringValue = "index"
+  savePanel.allowedContentTypes = [.json]
+
+  guard savePanel.runModal() == .OK, let url = savePanel.url else {
+    return
+  }
+
+  let encoder = JSONEncoder()
+  encoder.dateEncodingStrategy = .iso8601
+
+  FileManager.default.createFile(atPath: url.path, contents: nil)
+
+  let handle = try FileHandle(forWritingTo: url)
+  defer { try? handle.close() }
+
+  for entry in entries {
+    try handle.write(contentsOf: encoder.encode(entry))
+    try handle.write(contentsOf: Data([0x0A]))
   }
 }

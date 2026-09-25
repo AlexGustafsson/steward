@@ -16,6 +16,7 @@ struct IndexView: View {
   private enum IndexViewSheet: Hashable, Identifiable {
     case indexProgress
     case error(String)
+    case success
 
     var id: Self {
       self
@@ -63,7 +64,13 @@ struct IndexView: View {
             self.sheet = nil
           }.keyboardShortcut(.cancelAction)
           Button("Export") {
-            // TODO
+            do {
+              try saveIndex(entries: self.entries)
+              self.sheet = .success
+            } catch {
+              systemLogger.error("Failed to save index: \(error, privacy: .public)")
+              self.sheet = .error("Failed to save index: \(error.localizedDescription)")
+            }
           }.keyboardShortcut(.defaultAction)
         }
       }
@@ -83,6 +90,12 @@ struct IndexView: View {
         StatusView(progress: .unknown, status: "Indexing")
       case .error(let error):
         StatusFailedView(text: error)
+      case .success:
+        StatusCompleteView {
+          VStack {
+            Text("Index saved successfully").foregroundColor(.blue)
+          }
+        }
       }
     }
   }
