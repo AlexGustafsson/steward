@@ -9,12 +9,14 @@ struct IndexView: View {
   private enum IndexViewState: Equatable {
     case idle
     case indexing(Task<[IndexEntry], Error>)
+    case linting(Task<Sarif, Error>)
     case indexed
     case error(String)
   }
 
   private enum IndexViewSheet: Hashable, Identifiable {
     case indexProgress
+    case lintProgress
     case error(String)
     case success
 
@@ -28,6 +30,8 @@ struct IndexView: View {
 
   @State private var url: URL? = nil
   @State private var entries: [IndexEntry] = []
+  @State private var sarifLevel: SarifLevel = .none
+  @State private var sarifRules: [String: SarifRule]? = nil
 
   // TODO: Should essentially be index then viewindex view to allow for export / upload
   // TODO: Similar to upload view (confirm index view?)
@@ -42,10 +46,22 @@ struct IndexView: View {
             self.sheet = .indexProgress
             Task {
               do {
-                self.entries = try await task.value
-                self.url = url
-                self.state = .indexed
-                self.sheet = nil
+                var entries = try await task.value
+
+                do {
+                  let task = try StewardTool.lint(entries: entries)
+                  self.state = .linting(task)
+                  self.sheet = .lintProgress
+
+                  let sarif = try await task.value
+                  self.sarifRules = sarif.populate(entries: &entries, level: &self.sarifLevel)
+                  self.entries = entries
+                  self.state = .indexed
+                  self.sheet = nil
+                } catch {
+                  systemLogger.error("Failed to lint: \(error, privacy: .public)")
+                  self.sheet = .error("Failed to lint: \(error.localizedDescription)")
+                }
               } catch {
                 systemLogger.error("Failed to index: \(error, privacy: .public)")
                 self.sheet = .error("Failed to index: \(error.localizedDescription)")
@@ -57,7 +73,7 @@ struct IndexView: View {
           }
         }
       } else {
-        EntriesView(entries: $entries, sarifRules: nil) {
+        EntriesView(entries: $entries, sarifRules: sarifRules) {
           Button("Cancel") {
             self.entries = []
             self.state = .idle
@@ -79,6 +95,9 @@ struct IndexView: View {
       case .indexing(let task):
         task.cancel()
         self.state = .idle
+      case .linting(let task):
+        task.cancel()
+        self.state = .idle
       default:
         break
       }
@@ -88,6 +107,8 @@ struct IndexView: View {
       switch sheet {
       case .indexProgress:
         StatusView(progress: .unknown, status: "Indexing")
+      case .lintProgress:
+        StatusView(progress: .unknown, status: "Linting")
       case .error(let error):
         StatusFailedView(text: error)
       case .success:
