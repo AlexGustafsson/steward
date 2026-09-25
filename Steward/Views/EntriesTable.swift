@@ -1,6 +1,12 @@
 import SwiftData
 import SwiftUI
 
+extension Optional where Wrapped == String {
+  var unwrapOrEmpty: Wrapped {
+    self ?? ""
+  }
+}
+
 struct SarifLevelImage: View {
   let level: SarifLevel?
 
@@ -61,20 +67,20 @@ struct EntriesTable: View {
             SarifLevelImage(level: entry.sarif?.first?.level)
           }.width(50).alignment(.center).customizationID("checks")
         }
-        TableColumn("Album") { entry in
+        TableColumn("Album", value: \.album.unwrapOrEmpty) { entry in
           Text(entry.album ?? "")
         }.customizationID("album")
-        TableColumn("Disc #") { entry in
+        TableColumn("Disc #", value: \.disc.unwrapOrEmpty) { entry in
           Text(entry.disc ?? "")
         }.width(50).alignment(.trailing).customizationID("disc")
-        TableColumn("Track #") { entry in
+        TableColumn("Track #", value: \.track.unwrapOrEmpty) { entry in
           Text(entry.track ?? "")
         }.width(50).alignment(.trailing).customizationID("track")
-        TableColumn("Artist") { entry in
+        TableColumn("Artist", value: \.artist.unwrapOrEmpty) { entry in
           Text(entry.artist ?? "")
 
         }.customizationID("artist")
-        TableColumn("Title") { entry in
+        TableColumn("Title", value: \.title.unwrapOrEmpty) { entry in
           Text(entry.title ?? "")
         }.customizationID("title")
       } rows: {
@@ -95,6 +101,7 @@ struct EntriesTable: View {
         }
       }
       .onChange(of: sortOrder) { _, sortOrder in
+        print(sortOrder)
         entries.sort(using: sortOrder)
       }
       .onDeleteCommand {
