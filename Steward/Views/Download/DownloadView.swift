@@ -66,7 +66,7 @@ struct DownloadView: View {
       }
     } else {
       EntriesView(
-        entries: $entries
+        entries: $entries, sarifRules: nil
       ) {
         Toggle(isOn: $force) {
           Text("Force")

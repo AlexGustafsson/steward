@@ -2,6 +2,45 @@ import SwiftUI
 
 struct IndexEntryInspector: View {
   var entry: IndexEntry
+  public var sarifRules: [String: SarifRule]?
+
+  @ContentBuilder
+  var sarifSection: some View {
+    let rules: [String: SarifRule] = sarifRules ?? [:]
+    let results: [SarifResult] = entry.sarif ?? []
+
+    Section("Linting") {
+      ForEach(results.indices, id: \.self) { index in
+        let result: SarifResult = results[index]
+        let rule: SarifRule? = rules[result.ruleId]
+
+        let name = rule?.name ?? ""
+        let text = rule?.shortDescription.text ?? ""
+
+        let level = rule?.defaultConfiguration?.level
+        let systemImage =
+          level == .error
+          ? "x.circle.fill"
+          : level == .warning
+            ? "exclamationmark.circle.fill"
+            : "info.circle.fill"
+
+        let style =
+          level == .error
+          ? Color.red
+          : level == .warning
+            ? Color.orange
+            : Color.blue
+
+        Section {
+          Text(text)
+        } header: {
+          Label(name, systemImage: systemImage)
+            .foregroundStyle(style)
+        }
+      }
+    }
+  }
 
   var body: some View {
     Section("Overview") {
@@ -66,19 +105,22 @@ struct IndexEntryInspector: View {
         }
       }
     }
+    sarifSection
   }
 }
 
 struct IndexEntryInspectorForm: View {
   var entries: [IndexEntry]
   var selection: Set<IndexEntry.ID>
+  public var sarifRules: [String: SarifRule]?
 
   @State var entry: IndexEntry? = nil
 
   var body: some View {
     Form {
       if let entry = entry {
-        IndexEntryInspector(entry: entry)
+        IndexEntryInspector(
+          entry: entry, sarifRules: sarifRules)
       } else if selection.count > 1 {
         ContentUnavailableView {
           Image(systemName: "magnifyingglass.circle")

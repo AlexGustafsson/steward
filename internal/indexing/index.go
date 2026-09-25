@@ -21,6 +21,10 @@ import (
 // less likely it is that hashes will collide.
 const AudioHashMaxSize = 1024 * 1024 // 1MiB
 
+const EmptyAudioDigest = "md5:d41d8cd98f00b204e9800998ecf8427e"
+
+const EmptyPictureDigest = "md5:d41d8cd98f00b204e9800998ecf8427e"
+
 type Entry struct {
 	Name          string
 	ModTime       time.Time

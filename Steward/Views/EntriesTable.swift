@@ -1,8 +1,21 @@
 import SwiftData
 import SwiftUI
 
+struct SarifLevelImage: View {
+  let level: SarifLevel?
+
+  var body: some View {
+    if let level = level {
+      Image(systemName: level.systemName).foregroundStyle(level.color)
+    } else {
+      EmptyView()
+    }
+  }
+}
+
 struct EntriesTable: View {
   @Binding public var entries: [IndexEntry]
+  public var sarifRules: [String: SarifRule]?
 
   @State private var filteredEntries: [IndexEntry] = []
 
@@ -43,6 +56,11 @@ struct EntriesTable: View {
         of: IndexEntry.self, selection: $selection, sortOrder: $sortOrder,
         columnCustomization: $columnCustomization
       ) {
+        if sarifRules != nil {
+          TableColumn("Checks") { entry in
+            SarifLevelImage(level: entry.sarif?.first?.level)
+          }.width(50).alignment(.center).customizationID("checks")
+        }
         TableColumn("Album") { entry in
           Text(entry.album ?? "")
         }.customizationID("album")
@@ -85,16 +103,18 @@ struct EntriesTable: View {
         }
         selection.removeAll()
       }.inspector(isPresented: $isInspectorPresented) {
-        IndexEntryInspectorForm(entries: entries, selection: selection)
-          .inspectorColumnWidth(
-            min: 300, ideal: 400, max: 500
-          ).toolbar {
-            Button {
-              isInspectorPresented.toggle()
-            } label: {
-              Label("Toggle Inspector", systemImage: "info.circle")
-            }
+        IndexEntryInspectorForm(
+          entries: entries, selection: selection, sarifRules: sarifRules
+        )
+        .inspectorColumnWidth(
+          min: 300, ideal: 400, max: 500
+        ).toolbar {
+          Button {
+            isInspectorPresented.toggle()
+          } label: {
+            Label("Toggle Inspector", systemImage: "info.circle")
           }
+        }
       }
       .searchable(text: $searchText)
       .onChange(of: searchText) {

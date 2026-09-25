@@ -16,9 +16,14 @@ struct IndexEntry: Identifiable, Equatable, Codable {
   public var metadata: [String]
   public var audioDigest: String
   public var pictureDigest: String
+  public var sarif: [SarifResult]?
 
   var id: String {
     return self.name
+  }
+
+  static func == (lhs: borrowing Self, rhs: borrowing Self) -> Bool {
+    return lhs.id == rhs.id
   }
 
   var sortKey: String {

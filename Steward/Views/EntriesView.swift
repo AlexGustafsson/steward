@@ -3,29 +3,36 @@ import SwiftUI
 
 struct EntriesView<Options: View, Actions: View>: View {
   @Binding private var entries: [IndexEntry]
+  private var sarifRules: [String: SarifRule]?
 
   private let options: Options
   private let actions: Actions
 
-  init(entries: Binding<[IndexEntry]>, @ContentBuilder actions: () -> Actions)
+  init(
+    entries: Binding<[IndexEntry]>, sarifRules: [String: SarifRule]?,
+    @ContentBuilder actions: () -> Actions
+  )
   where Options == EmptyView {
     self._entries = entries
+    self.sarifRules = sarifRules
     self.options = EmptyView()
     self.actions = actions()
   }
 
   init(
-    entries: Binding<[IndexEntry]>, @ContentBuilder options: () -> Options,
+    entries: Binding<[IndexEntry]>, sarifRules: [String: SarifRule]?,
+    @ContentBuilder options: () -> Options,
     @ContentBuilder actions: () -> Actions
   ) {
     self._entries = entries
+    self.sarifRules = sarifRules
     self.options = options()
     self.actions = actions()
   }
 
   var body: some View {
     VStack {
-      EntriesTable(entries: $entries)
+      EntriesTable(entries: $entries, sarifRules: sarifRules)
       Divider()
       if Options.self != EmptyView.self {
         HStack {
@@ -53,7 +60,7 @@ struct EntriesView<Options: View, Actions: View>: View {
       pictureDigest: "md5:d41d8cd98f00b204e9800998ecf8427e"),
   ]
 
-  EntriesView(entries: $entries) {
+  EntriesView(entries: $entries, sarifRules: nil) {
     Button("Cancel") {
       //
     }.keyboardShortcut(.cancelAction)

@@ -58,7 +58,7 @@ struct ViewIndexDuplicatesView: View {
           }
         }
       } else {
-        EntriesView(entries: $entries) {
+        EntriesView(entries: $entries, sarifRules: nil) {
           Button("Cancel") {
             self.entries = []
             self.state = .idle

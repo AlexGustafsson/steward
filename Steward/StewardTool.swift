@@ -478,6 +478,33 @@ class StewardTool {
     }
   }
 
+  public static func lint(
+    entries: [IndexEntry]
+  ) throws -> Task<Sarif, Swift.Error> {
+    let stdout = StewardTool.Buffer()
+
+    let task = try self.run(
+      environment: [:],
+      arguments: [
+        "--verbose", "lint", "/dev/stdin",
+      ],
+      stdin: StewardTool.Encoder(entries: entries),
+      stdout: stdout,
+      stderr: StewardTool.Logger(onDownloadProgress: nil, onUploadProgress: nil),
+    )
+
+    return Task {
+      try await withTaskCancellationHandler {
+        let _ = try await task.value
+
+        let decoder = JSONDecoder()
+        return try decoder.decode(Sarif.self, from: Data(try await stdout.values()))
+      } onCancel: {
+        task.cancel()
+      }
+    }
+  }
+
   public static func downloadIndex(id: String) throws -> (Task<[IndexEntry], Swift.Error>) {
     guard let credentials = try GetCredentials() else {
       throw Error.unexpectedError

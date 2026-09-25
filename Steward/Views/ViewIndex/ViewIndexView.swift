@@ -9,11 +9,13 @@ struct ViewIndexView: View {
   private enum ViewIndexViewState: Equatable {
     case idle
     case indexing(Task<[IndexEntry], Error>)
+    case linting(Task<Sarif, Error>)
     case indexed
   }
 
   private enum ViewIndexViewSheet: Hashable, Identifiable {
     case indexProgress
+    case lintProgress
     case error(String)
 
     var id: Self {
@@ -25,6 +27,8 @@ struct ViewIndexView: View {
   @State private var sheet: ViewIndexViewSheet? = nil
 
   @State private var entries: [IndexEntry] = []
+  @State private var sarifLevel: SarifLevel = .none
+  @State private var sarifRules: [String: SarifRule]? = nil
 
   // TODO: Lacks the loading state that other views have?
   var body: some View {
@@ -43,9 +47,22 @@ struct ViewIndexView: View {
             self.sheet = .indexProgress
             Task {
               do {
-                self.entries = try await task.value
-                self.state = .indexed
-                self.sheet = nil
+                var entries = try await task.value
+
+                do {
+                  let task = try StewardTool.lint(entries: entries)
+                  self.state = .linting(task)
+                  self.sheet = .lintProgress
+
+                  let sarif = try await task.value
+                  self.sarifRules = sarif.populate(entries: &entries, level: &self.sarifLevel)
+                  self.entries = entries
+                  self.state = .indexed
+                  self.sheet = nil
+                } catch {
+                  systemLogger.error("Failed to lint: \(error, privacy: .public)")
+                  self.sheet = .error("Failed to lint: \(error.localizedDescription)")
+                }
               } catch {
                 systemLogger.error("Failed to index: \(error, privacy: .public)")
                 self.sheet = .error("Failed to index: \(error.localizedDescription)")
@@ -57,7 +74,7 @@ struct ViewIndexView: View {
           }
         }
       } else {
-        EntriesView(entries: $entries) {
+        EntriesView(entries: $entries, sarifRules: sarifRules) {
           Button("Cancel") {
             self.entries = []
             self.state = .idle
@@ -73,6 +90,9 @@ struct ViewIndexView: View {
       case .indexing(let task):
         task.cancel()
         self.state = .idle
+      case .linting(let task):
+        task.cancel()
+        self.state = .idle
       default:
         break
       }
@@ -81,6 +101,8 @@ struct ViewIndexView: View {
       switch sheet {
       case .indexProgress:
         StatusView(progress: .unknown, status: "Indexing")
+      case .lintProgress:
+        StatusView(progress: .unknown, status: "Linting")
       case .error(let error):
         StatusFailedView(text: error)
       }

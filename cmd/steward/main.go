@@ -57,6 +57,17 @@ func main() {
 				},
 			},
 			{
+				Name:      "lint",
+				Action:    LintAction,
+				Usage:     "Lint an index",
+				ArgsUsage: "[index]",
+				Arguments: []cli.Argument{
+					&cli.StringArg{
+						Name: "index",
+					},
+				},
+			},
+			{
 				Name:   "render",
 				Action: RenderAction,
 				Usage:  "Renders an HTML report of an index",

@@ -8,7 +8,8 @@ private let systemLogger = Logger(
 struct UploadView: View {
   private enum UploadViewState: Equatable {
     case idle
-    case indexing(Task<[IndexEntry], Error>)  // Reused for filtering / diffing
+    case indexing(Task<[IndexEntry], Error>)
+    case linting(Task<Sarif, Error>)
     case indexed
     case uploading(Task<String, Error>)
     case success(String)
@@ -16,6 +17,7 @@ struct UploadView: View {
 
   private enum UploadViewSheet: Hashable, Identifiable {
     case indexProgress
+    case lintProgress
     case uploadProgress
     case success(String)
     case error(String)
@@ -33,6 +35,8 @@ struct UploadView: View {
 
   @State private var url: URL? = nil
   @State private var entries: [IndexEntry] = []
+  @State private var sarifLevel: SarifLevel = .none
+  @State private var sarifRules: [String: SarifRule]? = nil
   @State private var uploadProgress: StewardTool.UploadProgress? = nil
 
   var body: some View {
@@ -46,10 +50,23 @@ struct UploadView: View {
           self.sheet = .indexProgress
           Task {
             do {
-              self.entries = try await task.value
+              var entries = try await task.value
               self.url = url
-              self.state = .indexed
-              self.sheet = nil
+
+              do {
+                let task = try StewardTool.lint(entries: entries)
+                self.state = .linting(task)
+                self.sheet = .lintProgress
+
+                let sarif = try await task.value
+                self.sarifRules = sarif.populate(entries: &entries, level: &self.sarifLevel)
+                self.entries = entries
+                self.state = .indexed
+                self.sheet = nil
+              } catch {
+                systemLogger.error("Failed to lint: \(error, privacy: .public)")
+                self.sheet = .error("Failed to lint: \(error.localizedDescription)")
+              }
             } catch {
               systemLogger.error("Failed to index: \(error, privacy: .public)")
               self.sheet = .error("Failed to index: \(error.localizedDescription)")
@@ -62,7 +79,7 @@ struct UploadView: View {
       }
     } else {
       EntriesView(
-        entries: $entries
+        entries: $entries, sarifRules: sarifRules
       ) {
         Toggle(isOn: $force) {
           Text("Force")
@@ -105,10 +122,13 @@ struct UploadView: View {
             systemLogger.error("Failed to upload: \(error, privacy: .public)")
             self.sheet = .error("Failed to upload: \(error.localizedDescription)")
           }
-        }.foregroundStyle(self.force ? .red : .blue)
+        }.foregroundStyle(self.force ? .red : self.sarifLevel.color)
       }.sheet(item: $sheet) {
         switch state {
         case .indexing(let task):
+          task.cancel()
+          self.state = .idle
+        case .linting(let task):
           task.cancel()
           self.state = .idle
         case .uploading(let task):
@@ -126,6 +146,8 @@ struct UploadView: View {
         switch sheet {
         case .indexProgress:
           StatusView(progress: .unknown, status: "Indexing")
+        case .lintProgress:
+          StatusView(progress: .unknown, status: "Linting")
         case .uploadProgress:
           StatusView(
             progress: .known(
