@@ -29,7 +29,7 @@ struct ViewIndexDuplicatesView: View {
   var body: some View {
     Group {
       if self.state == .idle {
-        SelectIndexView(title: "Drag and drop index to show") { reference in
+        SelectIndexView(title: "Drag and drop index to find duplicates") { reference in
           do {
             let task: Task<[IndexEntry], Error>
             switch reference {
