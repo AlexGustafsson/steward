@@ -32,6 +32,7 @@ targets:
       ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
       ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS: YES
       ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
+      DEAD_CODE_STRIPPING: YES
 
   # SEE: https://developer.apple.com/documentation/xcode/embedding-a-helper-tool-in-a-sandboxed-app
   StewardTool:
