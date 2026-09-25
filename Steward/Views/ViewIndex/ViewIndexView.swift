@@ -10,14 +10,17 @@ struct ViewIndexView: View {
     case idle
     case indexing(Task<[IndexEntry], Error>)
     case linting(Task<Sarif, Error>)
+    case uploading(Task<String, Error>)
     case indexed
   }
 
   private enum ViewIndexViewSheet: Hashable, Identifiable {
     case indexProgress
+    case uploadProgress
     case lintProgress
     case error(String)
-    case success
+    case saveSuccess
+    case uploadSuccess(String)
 
     var id: Self {
       self
@@ -81,10 +84,31 @@ struct ViewIndexView: View {
             self.state = .idle
             self.sheet = nil
           }.keyboardShortcut(.cancelAction)
+          Button("Upload") {
+            do {
+              let task = try StewardTool.uploadIndex(entries: self.entries)
+              self.state = .uploading(task)
+              self.sheet = .uploadProgress
+
+              Task {
+                do {
+                  let id = try await task.value
+                  self.state = .indexed
+                  self.sheet = .uploadSuccess(id)
+                } catch {
+                  systemLogger.error("Failed to upload index: \(error, privacy: .public)")
+                  self.sheet = .error("Failed to upload index: \(error.localizedDescription)")
+                }
+              }
+            } catch {
+              systemLogger.error("Failed to save index: \(error, privacy: .public)")
+              self.sheet = .error("Failed to save index: \(error.localizedDescription)")
+            }
+          }
           Button("Export") {
             do {
               try saveIndex(entries: self.entries)
-              self.sheet = .success
+              self.sheet = .saveSuccess
             } catch {
               systemLogger.error("Failed to save index: \(error, privacy: .public)")
               self.sheet = .error("Failed to save index: \(error.localizedDescription)")
@@ -100,6 +124,9 @@ struct ViewIndexView: View {
       case .linting(let task):
         task.cancel()
         self.state = .idle
+      case .uploading(let task):
+        task.cancel()
+        self.state = .idle
       default:
         break
       }
@@ -108,14 +135,23 @@ struct ViewIndexView: View {
       switch sheet {
       case .indexProgress:
         StatusView(progress: .unknown, status: "Indexing")
+      case .uploadProgress:
+        StatusView(progress: .unknown, status: "Uploading index")
       case .lintProgress:
         StatusView(progress: .unknown, status: "Linting")
       case .error(let error):
         StatusFailedView(text: error)
-      case .success:
+      case .saveSuccess:
         StatusCompleteView {
           VStack {
             Text("Index saved successfully").foregroundColor(.blue)
+          }
+        }
+      case .uploadSuccess(let id):
+        StatusCompleteView {
+          VStack {
+            Text("Index upload completed successfully. Your index id:").foregroundColor(.blue)
+            Text(id).font(.system(size: 14, design: .monospaced)).textSelection(.enabled)
           }
         }
       }

@@ -454,6 +454,43 @@ class StewardTool {
     }
   }
 
+  public static func uploadIndex(
+    entries: [IndexEntry]
+  ) throws -> Task<String, Swift.Error> {
+    guard let credentials = try GetCredentials() else {
+      throw Error.unexpectedError
+    }
+
+    let stdout = StewardTool.Buffer()
+    let logger = StewardTool.Logger(onDownloadProgress: nil, onUploadProgress: nil)
+
+    let task = try self.run(
+      environment: [
+        "B2_REGION": credentials.region,
+        "B2_KEY": credentials.key,
+        "B2_SECRET": credentials.secret,
+      ],
+      arguments: [
+        "--verbose", "upload-index", "--to",
+        credentials.bucket,
+        "-",
+      ],
+      stdin: StewardTool.Encoder(entries: entries),
+      stdout: stdout,
+      stderr: logger,
+    )
+
+    return Task {
+      try await withTaskCancellationHandler {
+        let _ = try await task.value
+        return try await String(bytes: stdout.values(), encoding: .utf8)!.trimmingCharacters(
+          in: .whitespacesAndNewlines)
+      } onCancel: {
+        task.cancel()
+      }
+    }
+  }
+
   public static func diff(local: URL, remote: [IndexEntry])
     throws -> Task<[IndexEntry], Swift.Error>
   {
