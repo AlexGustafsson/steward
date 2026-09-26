@@ -123,7 +123,8 @@ struct DownloadView: View {
               } catch {
                 systemLogger.error("Failed to download: \(error, privacy: .public)")
                 if case StewardTool.Error.duplicatesError = error {
-                  self.sheet = .error("The index contains duplicates. Downloading duplicates are not allowed.")
+                  self.sheet = .error(
+                    "The index contains duplicates. Downloading duplicates are not allowed.")
                 } else {
                   self.sheet = .error("Failed to download: \(error.localizedDescription)")
                 }

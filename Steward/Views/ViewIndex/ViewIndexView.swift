@@ -104,7 +104,7 @@ struct ViewIndexView: View {
               systemLogger.error("Failed to save index: \(error, privacy: .public)")
               self.sheet = .error("Failed to save index: \(error.localizedDescription)")
             }
-          }
+          }.foregroundStyle(self.sarifLevel.color)
           Button("Export") {
             do {
               try saveIndex(entries: self.entries)
