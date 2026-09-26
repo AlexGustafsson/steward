@@ -3,13 +3,31 @@ package main
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"os"
 
 	"github.com/urfave/cli/v3"
 )
 
-var ErrExit = errors.New("exit code")
+var _ error = (*ErrExit)(nil)
+
+type ErrExit struct {
+	Code int
+}
+
+func (e ErrExit) Error() string {
+	return fmt.Sprintf("exit code: %d", e.Code)
+}
+
+func ExitErrorf(code int, format string, a ...any) error {
+	return errors.Join(ErrExit{Code: code}, fmt.Errorf(format, a...))
+}
+
+const (
+	ExitCodeIndex      = 64
+	ExitCodeDuplicates = 66
+)
 
 func main() {
 	slog.SetDefault(slog.New(slog.NewJSONHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelWarn})))
@@ -183,8 +201,11 @@ func main() {
 	}
 
 	err := cmd.Run(context.Background(), os.Args)
-	if err == ErrExit {
-		os.Exit(1)
+	if e, ok := errors.AsType[ErrExit](err); ok {
+		if e != err {
+			fmt.Println(err.Error())
+		}
+		os.Exit(e.Code)
 	} else if err != nil {
 		slog.Error("Fatal error", slog.Any("error", err))
 		os.Exit(1)

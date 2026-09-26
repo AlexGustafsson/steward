@@ -296,6 +296,8 @@ class StewardTool {
 
   enum Error: Swift.Error {
     case unexpectedError
+    case indexError
+    case duplicatesError
   }
 
   private static var url: URL {
@@ -375,7 +377,14 @@ class StewardTool {
         try await stdoutResult
         try await stderrResult
 
-        if process.terminationStatus != 0 {
+        switch process.terminationStatus {
+        case 0:
+          break
+        case 64:
+          throw StewardTool.Error.indexError
+        case 66:
+          throw StewardTool.Error.duplicatesError
+        default:
           throw StewardTool.Error.unexpectedError
         }
       } onCancel: {

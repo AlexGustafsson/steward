@@ -13,7 +13,7 @@ func IndexAction(ctx context.Context, cmd *cli.Command) error {
 	args := cmd.Args()
 	if args.Len() == 0 {
 		_ = cli.ShowAppHelp(cmd)
-		return ErrExit
+		return ExitErrorf(1, "")
 	}
 
 	encoder := json.NewEncoder(os.Stdout)

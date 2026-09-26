@@ -20,13 +20,13 @@ func DiffAction(ctx context.Context, cmd *cli.Command) error {
 	localIndex := cmd.StringArg("local")
 	if localIndex == "" {
 		_ = cli.ShowAppHelp(cmd)
-		return ErrExit
+		return ErrExit{Code: 1}
 	}
 
 	remoteIndex := cmd.StringArg("remote")
 	if remoteIndex == "" {
 		_ = cli.ShowAppHelp(cmd)
-		return ErrExit
+		return ErrExit{Code: 1}
 	}
 
 	localEntries, err := readEntriesFile(localIndex)

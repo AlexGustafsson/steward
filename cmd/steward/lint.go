@@ -146,8 +146,7 @@ func LintAction(ctx context.Context, cmd *cli.Command) error {
 		slog.Debug("Reading index from file")
 		file, err := os.Open(indexPath)
 		if err != nil {
-			slog.Error("Failed to read index", slog.Any("error", err))
-			return ErrExit // TODO Actual error
+			return ExitErrorf(ExitCodeIndex, "failed to read index: %w", err)
 		}
 		defer file.Close()
 		reader = file
@@ -156,8 +155,7 @@ func LintAction(ctx context.Context, cmd *cli.Command) error {
 			var err error
 			reader, err = gzip.NewReader(reader)
 			if err != nil {
-				slog.Error("Failed to read index", slog.Any("error", err))
-				return ErrExit // TODO Actual error
+				return ExitErrorf(ExitCodeIndex, "failed to read index: %w", err)
 			}
 		}
 	} else {
