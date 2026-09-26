@@ -27,7 +27,8 @@ struct IndexEntry: Identifiable, Equatable, Codable {
   }
 
   var sortKey: String {
-    return "\(self.artist ?? "")/\(self.album ?? "")/\(self.disc ?? "0")/\(self.track ?? "0")"
+    return
+      "\(self.album ?? "")/\(self.disc ?? "0")/\(self.track ?? "0")/\(self.artist ?? "")/\(self.title ?? "")"
   }
 
   var disc: String? {
