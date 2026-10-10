@@ -67,6 +67,9 @@ struct EntriesTable: View {
             SarifLevelImage(level: entry.sarif?.first?.level)
           }.width(50).alignment(.center).customizationID("checks")
         }
+        TableColumn("File time", value: \.modTime) { entry in
+          Text(entry.modTime.formatted())
+        }.customizationID("time").defaultVisibility(.hidden)
         TableColumn("Album", value: \.album.unwrapOrEmpty) { entry in
           Text(entry.album ?? "")
         }.customizationID("album")
