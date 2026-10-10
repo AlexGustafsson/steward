@@ -72,6 +72,11 @@ struct IndexEntryInspector: View {
         }
       }
       HStack {
+        Text("File time")
+        Spacer()
+        Text(entry.modTime.formatted(date: .numeric, time: .shortened))
+      }
+      HStack {
         Text("Size")
         Spacer()
         Text(
