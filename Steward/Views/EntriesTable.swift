@@ -32,6 +32,10 @@ struct EntriesTable: View {
   @State private var isInspectorPresented = true
   @State private var searchText = ""
 
+  @State private var isDateFilterModalPresented = false
+  @State private var startDate: Date?
+  @State private var endDate: Date?
+
   func delete(_ id: IndexEntry.ID) {
     if let index = entries.firstIndex(where: { $0.id == id }) {
       entries.remove(at: index)
@@ -137,6 +141,47 @@ struct EntriesTable: View {
         } label: {
           Label("Undo", systemImage: "arrow.uturn.backward.circle")
         }
+        Button {
+          self.isDateFilterModalPresented = true
+        } label: {
+          Label("Time filter", systemImage: "calendar.circle")
+        }
+      }.sheet(isPresented: $isDateFilterModalPresented) {
+        self.isDateFilterModalPresented = false
+        self.startDate = nil
+        self.endDate = nil
+      } content: {
+        DateRangePicker(
+          startDate: $startDate,
+          endDate: $endDate
+        ).toolbar {
+          ToolbarItem(placement: .cancellationAction) {
+            Button("Cancel") {
+              self.isDateFilterModalPresented = false
+              self.startDate = nil
+              self.endDate = nil
+            }.keyboardShortcut(.cancelAction)
+          }
+          ToolbarItem(placement: .primaryAction) {
+            Button("Filter") {
+              self.isDateFilterModalPresented = false
+
+              // NOTE: As we won't filter without at least one date selected,
+              // in practice the start date will never be empty
+              let startDate = Calendar.current.startOfDay(for: self.startDate ?? Date.distantPast)
+              let endDate = Calendar.current.endOfDay(for: self.endDate ?? Date.distantFuture)
+
+              self.entries.removeAll(where: {
+                $0.modTime < startDate || $0.modTime > endDate
+              })
+
+              self.startDate = nil
+              self.endDate = nil
+            }.keyboardShortcut(.defaultAction).disabled(
+              self.startDate == nil && self.endDate == nil)
+          }
+        }.padding(EdgeInsets(top: 20, leading: 40, bottom: 20, trailing: 40))
+
       }
     }
   }
