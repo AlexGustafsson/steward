@@ -168,6 +168,36 @@ struct LogEntry: Codable {
     init?(intValue: Int) { nil }
   }
 
+  init(time: Date, level: String, msg: String) {
+    self.time = time
+    self.level = level
+    self.msg = msg
+  }
+
+  init(time: Date, level: String, msg: String, error: String) {
+    self.time = time
+    self.level = level
+    self.msg = msg
+    self.error = error
+  }
+
+  init(time: Date, level: String, msg: String, additionalProperties: [String: JSONValue]) {
+    self.time = time
+    self.level = level
+    self.msg = msg
+    self.additionalProperties = additionalProperties
+  }
+
+  init(
+    time: Date, level: String, msg: String, error: String, additionalProperties: [String: JSONValue]
+  ) {
+    self.time = time
+    self.level = level
+    self.msg = msg
+    self.error = error
+    self.additionalProperties = additionalProperties
+  }
+
   init(from decoder: Decoder) throws {
     let container = try decoder.container(keyedBy: CodingKeys.self)
     self.time = try container.decode(Date.self, forKey: .time)
